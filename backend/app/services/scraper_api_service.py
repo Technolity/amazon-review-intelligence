@@ -18,7 +18,7 @@ class ScraperAPIService:
     """Fetch real Amazon reviews using ScraperAPI."""
     
     def __init__(self):
-        self.api_key = os.getenv('SCRAPER_API_KEY', '32a1634466f7967d133145d2b02f655c')
+        self.api_key = os.getenv('SCRAPER_API_KEY', '')
         self.base_url = 'https://api.scraperapi.com'
         self.timeout = 60
     

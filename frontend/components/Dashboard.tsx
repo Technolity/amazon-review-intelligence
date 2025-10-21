@@ -28,7 +28,7 @@ export default function DashboardPage() {
       const result = await analyzeReviews({
         asin,
         fetch_new: true,
-      });
+      } as any);
 
       setAnalysis(result);
       
