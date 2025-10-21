@@ -1,103 +1,72 @@
-/**
- * Top navigation bar component.
- */
-
 'use client';
 
-import React from 'react';
-import { Search, Download, Settings, User, Globe } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, Download, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { amazonUrlParser } from '@/app/utils/amazon_url_parser';
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 
 interface NavbarProps {
   onExport?: (format: 'csv' | 'pdf') => void;
   onSearch?: (query: string) => void;
-  currentCountry?: string | null;
-  isMultiCountry?: boolean;
-  onMultiCountryToggle?: (enabled: boolean) => void;
 }
 
-export default function Navbar({ 
-  onExport, 
-  onSearch, 
-  currentCountry,
-  isMultiCountry = true,
-  onMultiCountryToggle 
-}: NavbarProps) {
-  const [searchQuery, setSearchQuery] = React.useState('');
+export default function Navbar({ onExport, onSearch }: NavbarProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (onSearch && searchQuery.trim()) {
-      const asin = amazonUrlParser.extractAsin(searchQuery.trim());
-      if (asin) {
-        onSearch(asin);
-      }
+    if (onSearch && searchQuery.trim().length >= 10) {
+      onSearch(searchQuery.trim());
+      setSearchQuery('');
     }
   };
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-      <div className="flex h-16 items-center px-6 gap-4">
-        {/* Logo/Title */}
+    <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="flex h-14 md:h-16 items-center px-4 md:px-6 gap-4">
+        {/* Logo */}
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-blue-700">
-            <span className="text-sm font-bold text-white">AI</span>
+          <div className="h-7 w-7 md:h-8 md:w-8 rounded bg-primary flex items-center justify-center">
+            <span className="text-xs md:text-sm font-bold text-primary-foreground">AI</span>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">Review Intelligence</h1>
-            <p className="text-xs text-gray-500">Scalez Media Dashboard</p>
+          <div className="hidden sm:block">
+            <h1 className="text-sm md:text-base font-semibold">Review Intelligence</h1>
           </div>
         </div>
 
-        {/* Search Bar */}
-        <form onSubmit={handleSearch} className="flex-1 max-w-md ml-8">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        {/* Desktop Search */}
+        <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md mx-auto">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search by ASIN or Amazon URL..."
+              placeholder="Enter ASIN or URL..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-gray-50 border-gray-200"
+              className="pl-9 h-9"
             />
           </div>
         </form>
 
-        {/* Region Info */}
-        {currentCountry && (
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <Globe className="h-4 w-4" />
-            <span>{currentCountry}</span>
-          </div>
-        )}
-
-        {/* Multi-Country Toggle */}
-        {onMultiCountryToggle && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">Multi-Region</span>
-            <Switch
-              checked={isMultiCountry}
-              onCheckedChange={onMultiCountryToggle}
-            />
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 ml-auto">
-          {/* Export Dropdown */}
+        {/* Desktop Actions */}
+        <div className="hidden md:flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Download className="h-4 w-4" />
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
                 Export
               </Button>
             </DropdownMenuTrigger>
@@ -110,25 +79,56 @@ export default function Navbar({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
 
-          {/* Settings */}
-          <Button variant="ghost" size="icon">
-            <Settings className="h-5 w-5" />
-          </Button>
-
-          {/* User Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <User className="h-5 w-5" />
+        {/* Mobile Menu */}
+        <div className="ml-auto md:hidden">
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9">
+                <Menu className="h-5 w-5" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>Profile</DropdownMenuItem>
-              <DropdownMenuItem>Settings</DropdownMenuItem>
-              <DropdownMenuItem>Help</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[280px] sm:w-[350px]">
+              <div className="flex flex-col gap-4 mt-4">
+                {/* Mobile Search */}
+                <form onSubmit={handleSearch} className="w-full">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Enter ASIN..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </form>
+                
+                {/* Mobile Export Options */}
+                <div className="flex flex-col gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      onExport?.('csv');
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    Export as CSV
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      onExport?.('pdf');
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    Export as PDF
+                  </Button>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </nav>

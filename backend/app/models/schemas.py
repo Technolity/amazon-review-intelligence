@@ -11,8 +11,8 @@ import re
 # Request Schemas
 class ReviewFetchRequest(BaseModel):
     """Request to fetch reviews."""
-    asin: str = Field(..., min_length=10, max_length=500)  # Increased max_length for URLs
-    max_reviews: Optional[int] = Field(500, ge=1, le=1000)
+    asin: str = Field(..., min_length=10, max_length=500)  # Increased for URLs
+    max_reviews: Optional[int] = Field(100, ge=1, le=1000)
     country: Optional[str] = Field("IN")
     multi_country: Optional[bool] = Field(True)
     
@@ -56,9 +56,9 @@ class ReviewFetchRequest(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     """Request to analyze reviews."""
-    asin: str = Field(..., min_length=10, max_length=500)  # Increased max_length for URLs
+    asin: str = Field(..., min_length=10, max_length=500)  # Allow URLs
     keyword: Optional[str] = None
-    fetch_new: bool = False
+    fetch_new: bool = True
     country: Optional[str] = Field("IN")
     multi_country: Optional[bool] = Field(True)
     
@@ -107,7 +107,7 @@ class ExportRequest(BaseModel):
     include_raw_reviews: bool = True
 
 
-# Response Schemas - Add new fields for country support
+# Response Schemas (keep the rest as is)
 class KeywordItem(BaseModel):
     """Individual keyword with metadata."""
     word: str
@@ -123,7 +123,6 @@ class SentimentDistribution(BaseModel):
     negative: Dict[str, Any]
     average_rating: float
     median_rating: float
-    overall_sentiment_score: Optional[float] = 0.0
 
 
 class RatingDistribution(BaseModel):
@@ -158,16 +157,6 @@ class AnalysisResponse(BaseModel):
     temporal_trends: Dict[str, Any]
     insights: List[str]
     summary: str
-    
-    # New fields for country and source support
-    country: Optional[str] = None
-    countries_tried: Optional[List[str]] = None
-    successful_country: Optional[str] = None
-    source: Optional[str] = None
-    fetched_at: Optional[str] = None
-    mock_data: Optional[bool] = False
-    error_type: Optional[str] = None
-    suggestion: Optional[str] = None
 
 
 class ReviewItem(BaseModel):
@@ -180,8 +169,6 @@ class ReviewItem(BaseModel):
     review_date: str
     verified_purchase: bool
     helpful_votes: int
-    reviewer_name: Optional[str] = None
-    reviewer_id: Optional[str] = None
 
 
 class ReviewsResponse(BaseModel):
@@ -193,17 +180,6 @@ class ReviewsResponse(BaseModel):
     product_title: str
     fetched_at: str
     mock_data: bool = False
-    
-    # New fields for country and source support
-    country: Optional[str] = None
-    countries_tried: Optional[List[str]] = None
-    successful_country: Optional[str] = None
-    source: Optional[str] = None
-    average_rating: Optional[float] = None
-    error_type: Optional[str] = None
-    suggestion: Optional[str] = None
-    error: Optional[str] = None
-    error_detail: Optional[str] = None
 
 
 class ExportResponse(BaseModel):
@@ -220,8 +196,6 @@ class ErrorResponse(BaseModel):
     success: bool = False
     error: str
     detail: Optional[str] = None
-    error_type: Optional[str] = None
-    suggestion: Optional[str] = None
 
 
 class HealthResponse(BaseModel):

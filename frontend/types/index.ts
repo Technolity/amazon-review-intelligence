@@ -1,5 +1,6 @@
 /**
  * TypeScript type definitions for the application.
+ * Updated for Apify-only backend with max 5 reviews.
  */
 
 export interface KeywordItem {
@@ -20,7 +21,6 @@ export interface SentimentDistribution {
   negative: SentimentCount;
   average_rating: number;
   median_rating: number;
-  overall_sentiment_score: number;
 }
 
 export interface RatingDistribution {
@@ -40,9 +40,6 @@ export interface TemporalTrend {
 export interface KeywordAnalysis {
   top_keywords: KeywordItem[];
   total_unique_words: number;
-  sentiment_by_keyword?: {
-    [keyword: string]: number;
-  };
 }
 
 export interface TemporalTrends {
@@ -62,16 +59,8 @@ export interface AnalysisResult {
   temporal_trends: TemporalTrends;
   insights: string[];
   summary: string;
-  
-  // New fields for country and source support
-  country?: string;
-  countries_tried?: string[];
-  successful_country?: string;
-  source?: 'apify' | 'mock' | 'scraperapi';
-  fetched_at?: string;
-  mock_data?: boolean;
-  error_type?: string;
-  suggestion?: string;
+  max_reviews_limit?: number;
+  api_source?: string;
 }
 
 export interface Review {
@@ -83,8 +72,9 @@ export interface Review {
   review_date: string;
   verified_purchase: boolean;
   helpful_votes: number;
-  reviewer_name?: string;
-  reviewer_id?: string;
+  author?: string;
+  country?: string;
+  source?: string;
 }
 
 export interface ReviewsResponse {
@@ -95,27 +85,28 @@ export interface ReviewsResponse {
   product_title: string;
   fetched_at: string;
   mock_data?: boolean;
-  
-  // New fields for country and source support
+  api_source?: string;
+  max_reviews_limit?: number;
   country?: string;
-  countries_tried?: string[];
-  successful_country?: string;
-  source?: 'apify' | 'mock' | 'scraperapi';
-  average_rating?: number;
+  product_info?: {
+    title?: string;
+    asin?: string;
+    rating?: number;
+    total_reviews?: number;
+    price?: string;
+  };
+  error?: string;
   error_type?: string;
   suggestion?: string;
-  error?: string;
-  error_detail?: string;
 }
 
 export interface AnalyzeRequest {
-  asin: string;
+  input: string;  // ASIN or URL
   keyword?: string;
   fetch_new?: boolean;
-  
-  // New fields for country support
-  country?: string;
+  country?: string;  // Country code
   multi_country?: boolean;
+  max_reviews?: number; // Max 5 for Apify
 }
 
 export interface ExportRequest {
@@ -135,10 +126,26 @@ export interface ExportResponse {
 export interface ApiError {
   success: false;
   error: string;
-  detail?: string | {
-    message: string;
-    error_type: string;
-    suggestion?: string;
+  detail?: string;
+  error_type?: string;
+  suggestion?: string;
+  asin?: string;
+  country?: string;
+}
+
+export interface ServiceStatus {
+  service: string;
+  status: 'active' | 'inactive' | 'error';
+  max_reviews_limit: number;
+  description?: string;
+  error?: string;
+}
+
+export interface HealthCheckResponse {
+  status: string;
+  timestamp: string;
+  services: {
+    apify: ServiceStatus;
   };
 }
 
@@ -159,25 +166,4 @@ export interface GraphEdge {
   source: string;
   target: string;
   animated?: boolean;
-}
-
-// Country types for Amazon regions
-export interface AmazonCountry {
-  code: string;
-  name: string;
-  flag: string;
-  domain: string;
-}
-
-export interface CountrySelectionProps {
-  selectedCountry: string;
-  onCountryChange: (country: string) => void;
-  availableCountries: AmazonCountry[];
-  disabled?: boolean;
-}
-
-export interface MultiCountryToggleProps {
-  enabled: boolean;
-  onToggle: (enabled: boolean) => void;
-  disabled?: boolean;
 }

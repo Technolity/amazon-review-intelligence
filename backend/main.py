@@ -1,25 +1,44 @@
+
 """
-Main FastAPI application entry point.
+Enhanced FastAPI application with AI/NLP capabilities.
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from datetime import datetime
+from contextlib import asynccontextmanager
+import uvicorn
 
 from app.core.config import settings
-from app.api.endpoints import reviews, analyze, export
+from app.api.endpoints import analyze, reviews, export, insights
 
-# Create FastAPI app
+# Lifespan context manager for startup/shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION}")
+    print(f"🤖 AI Features: {'Enabled' if settings.ENABLE_AI else 'Disabled'}")
+    print(f"💭 Emotion Detection: {'Enabled' if settings.ENABLE_EMOTIONS else 'Disabled'}")
+    print(f"🔧 Debug Mode: {'ON' if settings.DEBUG else 'OFF'}")
+    
+    # Download required NLTK data
+    import nltk
+    nltk.download('punkt', quiet=True)
+    nltk.download('stopwords', quiet=True)
+    nltk.download('vader_lexicon', quiet=True)
+    
+    yield
+    
+    # Shutdown
+    print("👋 Shutting down...")
+
+# Create app
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="Amazon Review Intelligence API",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    lifespan=lifespan
 )
 
-# CORS Middleware
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -28,74 +47,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers
+app.include_router(analyze.router, prefix="/api/v1/analyze", tags=["Analysis"])
+app.include_router(reviews.router, prefix="/api/v1/reviews", tags=["Reviews"])
+app.include_router(export.router, prefix="/api/v1/export", tags=["Export"])
+app.include_router(insights.router, prefix="/api/v1/insights", tags=["Insights"])
 
-# Health check endpoint
 @app.get("/")
 async def root():
-    """Root endpoint - health check."""
     return {
-        "status": "healthy",
-        "app_name": settings.APP_NAME,
+        "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "timestamp": datetime.now().isoformat()
+        "status": "running",
+        "ai_enabled": settings.ENABLE_AI,
+        "endpoints": {
+            "analyze": "/api/v1/analyze",
+            "sentiment": "/api/v1/analyze/sentiment/{asin}",
+            "insights": "/api/v1/analyze/insights/{asin}",
+            "reviews": "/api/v1/reviews",
+            "export": "/api/v1/export"
+        }
     }
-
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
     return {
         "status": "healthy",
-        "timestamp": datetime.now().isoformat()
+        "ai_models": {
+            "sentiment": "active" if settings.ENABLE_AI else "disabled",
+            "emotions": "active" if settings.ENABLE_EMOTIONS else "disabled",
+            "topics": "active",
+            "insights": "active" if settings.OPENAI_API_KEY else "limited"
+        }
     }
 
-
-# Include routers
-app.include_router(
-    reviews.router,
-    prefix=f"{settings.API_V1_PREFIX}/reviews",
-    tags=["Reviews"]
-)
-
-app.include_router(
-    analyze.router,
-    prefix=f"{settings.API_V1_PREFIX}/analyze",
-    tags=["Analysis"]
-)
-
-app.include_router(
-    export.router,
-    prefix=f"{settings.API_V1_PREFIX}/export",
-    tags=["Export"]
-)
-
-
-# Exception handler
-@app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    """Global exception handler with detailed logging."""
-    import traceback
-    
-    # Print full error to console
-    print("\n" + "="*50)
-    print("❌ ERROR OCCURRED:")
-    print("="*50)
-    traceback.print_exc()
-    print("="*50 + "\n")
-    
-    return JSONResponse(
-        status_code=500,
-        content={
-            "success": False,
-            "error": "Internal server error",
-            "detail": str(exc) if settings.DEBUG else "An error occurred",
-            "type": type(exc).__name__
-        }
-    )
-
-
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(
         "main:app",
         host=settings.HOST,
