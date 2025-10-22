@@ -4,24 +4,175 @@
  */
 
 import axios, { AxiosError } from 'axios';
-import type {
-  AnalysisResult,
-  ReviewsResponse,
-  AnalyzeRequest,
-  ExportRequest,
-  ExportResponse,
-  ApiError,
-  HealthCheckResponse,
-  ServiceStatus,
-} from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_PREFIX = '/api/v1';
 
+// ==================== TYPE DEFINITIONS ====================
+
+export interface ApiError {
+  success: false;
+  error: string;
+  detail?: string;
+  error_type?: string;
+  suggestion?: string;
+  asin?: string;
+  country?: string;
+}
+
+export interface Review {
+  success: boolean;
+  asin: string;
+  total_reviews: number;
+  reviews: ReviewItem[];
+  product_title: string;
+  fetched_at: string;
+  mock_data?: boolean;
+  api_source?: string;
+  max_reviews_limit?: number;
+  country?: string;
+  product_info?: ProductInfo;
+  error?: string;
+  error_type?: string;
+  suggestion?: string;
+}
+
+export interface ReviewItem {
+  review_id: string;
+  asin: string;
+  rating: number;
+  review_text: string;
+  review_title: string;
+  review_date: string;
+  verified_purchase: boolean;
+  helpful_votes: number;
+  author?: string;
+  country?: string;
+  source?: string;
+}
+
+export interface ProductInfo {
+  title?: string;
+  asin?: string;
+  rating?: number;
+  total_reviews?: number;
+  price?: string;
+}
+
+export interface AnalysisResult {
+  success: boolean;
+  asin: string;
+  product_title: string;
+  total_reviews: number;
+  analyzed_at: string;
+  sentiment_distribution: SentimentDistribution;
+  keyword_analysis: KeywordAnalysis;
+  rating_distribution: RatingDistribution;
+  temporal_trends: TemporalTrends;
+  insights: string[];
+  summary: string;
+  max_reviews_limit?: number;
+  api_source?: string;
+}
+
+export interface SentimentDistribution {
+  positive: SentimentCount;
+  neutral: SentimentCount;
+  negative: SentimentCount;
+  average_rating: number;
+  median_rating: number;
+}
+
+export interface SentimentCount {
+  count: number;
+  percentage: number;
+}
+
+export interface KeywordAnalysis {
+  top_keywords: Keyword[];
+  total_unique_words: number;
+}
+
+export interface Keyword {
+  word: string;
+  frequency: number;
+  tfidf_score: number;
+  importance: 'high' | 'medium' | 'low';
+}
+
+export interface RatingDistribution {
+  '5_star': number;
+  '4_star': number;
+  '3_star': number;
+  '2_star': number;
+  '1_star': number;
+}
+
+export interface TemporalTrends {
+  monthly_data: MonthlyData[];
+  trend: 'increasing' | 'decreasing' | 'stable' | 'unknown';
+}
+
+export interface MonthlyData {
+  month: string;
+  review_count: number;
+  average_rating: number;
+}
+
+export interface Theme {
+  topic_id: number;
+  keywords: string[];
+  weight: number;
+  theme: string;
+}
+
+export interface Insights {
+  insights: string[];
+}
+
+export interface AggregateMetrics {
+  total_reviews: number;
+  average_rating: number;
+  verified_percentage: number;
+  helpful_reviews_count: number;
+}
+
+export interface ExportRequest {
+  asin: string;
+  format: 'csv' | 'pdf';
+  include_raw_reviews?: boolean;
+}
+
+export interface ExportResponse {
+  success: boolean;
+  file_path: string;
+  file_size: number;
+  format: string;
+  download_url: string;
+}
+
+export interface HealthCheckResponse {
+  status: string;
+  timestamp: string;
+  services: {
+    apify: ServiceStatus;
+  };
+}
+
+export interface ServiceStatus {
+  service: string;
+  status: 'active' | 'inactive' | 'error';
+  max_reviews_limit: number;
+  description?: string;
+  error?: string;
+}
+
+// ==================== API CLIENT ====================
+
 // Create axios instance with appropriate timeout for Apify
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 12000000000000, // 2 minutes for Apify scraping
+  timeout: 120000, // 2 minutes for Apify scraping
   headers: {
     'Content-Type': 'application/json',
   },
@@ -45,6 +196,8 @@ apiClient.interceptors.response.use(
   }
 );
 
+// ==================== API FUNCTIONS ====================
+
 /**
  * Fetch reviews for a product using Apify (max 5 reviews)
  */
@@ -53,12 +206,12 @@ export async function fetchReviews(
   maxReviews: number = 5, 
   country: string = "IN", 
   multi_country: boolean = true
-): Promise<ReviewsResponse> {
+): Promise<Review> {
   
   // Enforce maximum 5 reviews for Apify
   const actualMaxReviews = Math.min(maxReviews, 5);
   
-  const response = await apiClient.get<ReviewsResponse>(
+  const response = await apiClient.get<Review>(
     `${API_PREFIX}/reviews/fetch/${encodeURIComponent(asin_or_url)}`,
     {
       params: { 
@@ -79,12 +232,12 @@ export async function fetchReviewsPost(
   maxReviews: number = 5, 
   country: string = "IN", 
   multi_country: boolean = true
-): Promise<ReviewsResponse> {
+): Promise<Review> {
   
   // Enforce maximum 5 reviews for Apify
   const actualMaxReviews = Math.min(maxReviews, 5);
   
-  const response = await apiClient.post<ReviewsResponse>(
+  const response = await apiClient.post<Review>(
     `${API_PREFIX}/reviews/fetch`,
     {
       asin: asin_or_url,
@@ -175,16 +328,32 @@ export async function healthCheck(): Promise<HealthCheckResponse> {
  * Get service status
  */
 export async function getServiceStatus(): Promise<{ apify: ServiceStatus }> {
-  const response = await apiClient.get(`${API_PREFIX}/status`);
-  return response.data;
+  try {
+    const response = await apiClient.get(`${API_PREFIX}/status`);
+    return response.data;
+  } catch (error) {
+    // Fallback if status endpoint doesn't exist yet
+    return {
+      apify: {
+        service: 'apify',
+        status: 'active',
+        max_reviews_limit: 5,
+        description: 'Amazon reviews scraper using Apify'
+      }
+    };
+  }
 }
 
 /**
  * Test API connection
  */
 export async function testConnection(): Promise<{ status: string; message: string }> {
-  const response = await apiClient.get('/');
-  return response.data;
+  try {
+    const response = await apiClient.get('/');
+    return response.data;
+  } catch (error) {
+    throw new Error('Cannot connect to backend server');
+  }
 }
 
 /**

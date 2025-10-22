@@ -9,7 +9,7 @@ import traceback
 from app.services.amazon_scraper import amazon_scraper
 from app.services.analyzer import review_analyzer
 from backend.app.services.free_ai_nlp import insight_generator
-from app.services.report_generator import report_generator
+from app.services.insights import InsightGenerator
 
 router = APIRouter()
 
