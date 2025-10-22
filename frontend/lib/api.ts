@@ -1,395 +1,293 @@
 /**
- * API client for backend communication.
- * Updated for Apify-only backend with max 5 reviews.
+ * API Client for Amazon Review Intelligence
+ * Corrected to match YOUR actual types/index.ts
  */
 
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios';
 
+// Import types from YOUR actual index.ts
+import type {
+  AnalysisResult,
+  ExportRequest,
+  ExportResponse,
+  Review,
+} from '@/types';
+
+// API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const API_PREFIX = '/api/v1';
+const API_TIMEOUT = 120000; // 2 minutes for analysis requests
 
-// ==================== TYPE DEFINITIONS ====================
-
-export interface ApiError {
-  success: false;
-  error: string;
-  detail?: string;
-  error_type?: string;
-  suggestion?: string;
-  asin?: string;
-  country?: string;
-}
-
-export interface Review {
-  success: boolean;
-  asin: string;
-  total_reviews: number;
-  reviews: ReviewItem[];
-  product_title: string;
-  fetched_at: string;
-  mock_data?: boolean;
-  api_source?: string;
-  max_reviews_limit?: number;
-  country?: string;
-  product_info?: ProductInfo;
-  error?: string;
-  error_type?: string;
-  suggestion?: string;
-}
-
-export interface ReviewItem {
-  review_id: string;
-  asin: string;
-  rating: number;
-  review_text: string;
-  review_title: string;
-  review_date: string;
-  verified_purchase: boolean;
-  helpful_votes: number;
-  author?: string;
-  country?: string;
-  source?: string;
-}
-
-export interface ProductInfo {
-  title?: string;
-  asin?: string;
-  rating?: number;
-  total_reviews?: number;
-  price?: string;
-}
-
-export interface AnalysisResult {
-  success: boolean;
-  asin: string;
-  product_title: string;
-  total_reviews: number;
-  analyzed_at: string;
-  sentiment_distribution: SentimentDistribution;
-  keyword_analysis: KeywordAnalysis;
-  rating_distribution: RatingDistribution;
-  temporal_trends: TemporalTrends;
-  insights: string[];
-  summary: string;
-  max_reviews_limit?: number;
-  api_source?: string;
-}
-
-export interface SentimentDistribution {
-  positive: SentimentCount;
-  neutral: SentimentCount;
-  negative: SentimentCount;
-  average_rating: number;
-  median_rating: number;
-}
-
-export interface SentimentCount {
-  count: number;
-  percentage: number;
-}
-
-export interface KeywordAnalysis {
-  top_keywords: Keyword[];
-  total_unique_words: number;
-}
-
-export interface Keyword {
-  word: string;
-  frequency: number;
-  tfidf_score: number;
-  importance: 'high' | 'medium' | 'low';
-}
-
-export interface RatingDistribution {
-  '5_star': number;
-  '4_star': number;
-  '3_star': number;
-  '2_star': number;
-  '1_star': number;
-}
-
-export interface TemporalTrends {
-  monthly_data: MonthlyData[];
-  trend: 'increasing' | 'decreasing' | 'stable' | 'unknown';
-}
-
-export interface MonthlyData {
-  month: string;
-  review_count: number;
-  average_rating: number;
-}
-
-export interface Theme {
-  topic_id: number;
-  keywords: string[];
-  weight: number;
-  theme: string;
-}
-
-export interface Insights {
-  insights: string[];
-}
-
-export interface AggregateMetrics {
-  total_reviews: number;
-  average_rating: number;
-  verified_percentage: number;
-  helpful_reviews_count: number;
-}
-
-export interface ExportRequest {
-  asin: string;
-  format: 'csv' | 'pdf';
-  include_raw_reviews?: boolean;
-}
-
-export interface ExportResponse {
-  success: boolean;
-  file_path: string;
-  file_size: number;
-  format: string;
-  download_url: string;
-}
-
-export interface HealthCheckResponse {
-  status: string;
-  timestamp: string;
-  services: {
-    apify: ServiceStatus;
-  };
-}
-
-export interface ServiceStatus {
-  service: string;
-  status: 'active' | 'inactive' | 'error';
-  max_reviews_limit: number;
-  description?: string;
-  error?: string;
-}
-
-// ==================== API CLIENT ====================
-
-// Create axios instance with appropriate timeout for Apify
-const apiClient = axios.create({
+// Create axios instance
+const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 120000, // 2 minutes for Apify scraping
+  timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Response interceptor for error handling
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error: AxiosError<ApiError>) => {
-    const errorMessage = error.response?.data?.error || error.message || 'An error occurred';
-    const errorDetail = error.response?.data?.detail;
-    const errorType = error.response?.data?.error_type;
-    const suggestion = error.response?.data?.suggestion;
-    
-    const enhancedError = new Error(errorMessage);
-    (enhancedError as any).detail = errorDetail;
-    (enhancedError as any).error_type = errorType;
-    (enhancedError as any).suggestion = suggestion;
-    
-    throw enhancedError;
+// Request interceptor for logging
+apiClient.interceptors.request.use(
+  (config) => {
+    console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('❌ Request Error:', error);
+    return Promise.reject(error);
   }
 );
 
-// ==================== API FUNCTIONS ====================
-
-/**
- * Fetch reviews for a product using Apify (max 5 reviews)
- */
-export async function fetchReviews(
-  asin_or_url: string, 
-  maxReviews: number = 5, 
-  country: string = "IN", 
-  multi_country: boolean = true
-): Promise<Review> {
-  
-  // Enforce maximum 5 reviews for Apify
-  const actualMaxReviews = Math.min(maxReviews, 5);
-  
-  const response = await apiClient.get<Review>(
-    `${API_PREFIX}/reviews/fetch/${encodeURIComponent(asin_or_url)}`,
-    {
-      params: { 
-        max_reviews: actualMaxReviews,
-        country: country,
-        multi_country: multi_country
-      },
+// Response interceptor for error handling
+apiClient.interceptors.response.use(
+  (response) => {
+    console.log(`✅ API Response: ${response.config.url} - ${response.status}`);
+    return response;
+  },
+  (error: AxiosError) => {
+    console.error('❌ Response Error:', error.response?.data || error.message);
+    
+    if (error.response) {
+      const errorData = error.response.data as any;
+      throw {
+        success: false,
+        error: errorData?.error || errorData?.detail || error.message || 'An error occurred',
+        error_type: errorData?.error_type || 'unknown',
+        asin: errorData?.asin,
+      };
+    } else if (error.request) {
+      throw {
+        success: false,
+        error: 'No response from server. Please check your connection.',
+        error_type: 'network_error',
+      };
+    } else {
+      throw {
+        success: false,
+        error: error.message || 'Request failed',
+        error_type: 'request_error',
+      };
     }
-  );
-  return response.data;
-}
-
-/**
- * Fetch reviews using POST request (Apify only)
- */
-export async function fetchReviewsPost(
-  asin_or_url: string, 
-  maxReviews: number = 5, 
-  country: string = "IN", 
-  multi_country: boolean = true
-): Promise<Review> {
-  
-  // Enforce maximum 5 reviews for Apify
-  const actualMaxReviews = Math.min(maxReviews, 5);
-  
-  const response = await apiClient.post<Review>(
-    `${API_PREFIX}/reviews/fetch`,
-    {
-      asin: asin_or_url,
-      max_reviews: actualMaxReviews,
-      country: country,
-      multi_country: multi_country
-    }
-  );
-  return response.data;
-}
-
-/**
- * Analyze reviews for a product (Apify only)
- */
-export async function analyzeReviews(request: {
-  asin: string;
-  fetch_new?: boolean;
-  country?: string;
-  multi_country?: boolean;
-  max_reviews?: number; // Max 5 for Apify
-}): Promise<AnalysisResult> {
-  
-  // Enforce maximum 5 reviews for Apify
-  if (request.max_reviews && request.max_reviews > 5) {
-    request.max_reviews = 5;
   }
-  
-  const response = await apiClient.post<AnalysisResult>(
-    `${API_PREFIX}/analyze/`,
-    request
-  );
-  return response.data;
+);
+
+/**
+ * Analyze Amazon product reviews
+ * Matches your backend /api/analyze/ endpoint
+ */
+export async function analyzeReviews(params: {
+  asin: string;
+  country?: string;
+  fetch_new?: boolean;
+  max_reviews?: number;
+}): Promise<AnalysisResult> {
+  try {
+    const requestData = {
+      input: params.asin,
+      country: params.country || 'US',
+      fetch_new: params.fetch_new ?? true,
+      max_reviews: params.max_reviews || 5,
+    };
+
+    const response = await apiClient.post<AnalysisResult>('/api/analyze/', requestData);
+    return response.data;
+  } catch (error) {
+    console.error('Analyze Reviews Error:', error);
+    throw error;
+  }
 }
 
 /**
- * Analyze reviews by ASIN (GET request) - Apify only
+ * Fetch raw reviews without full analysis
  */
-export async function analyzeReviewsByAsin(
-  asin_or_url: string, 
-  country: string = "IN", 
-  multi_country: boolean = true,
-  max_reviews: number = 5
-): Promise<AnalysisResult> {
-  
-  // Enforce maximum 5 reviews for Apify
-  const actualMaxReviews = Math.min(max_reviews, 5);
-  
-  const response = await apiClient.get<AnalysisResult>(
-    `${API_PREFIX}/analyze/${encodeURIComponent(asin_or_url)}`,
-    {
-      params: {
-        country: country,
-        multi_country: multi_country,
-        max_reviews: actualMaxReviews
-      }
-    }
-  );
-  return response.data;
+export async function fetchReviews(params: {
+  asin: string;
+  country?: string;
+  max_reviews?: number;
+}): Promise<{ success: boolean; reviews: Review[]; asin: string; total_reviews: number }> {
+  try {
+    const response = await apiClient.post('/api/reviews/fetch', {
+      asin: params.asin,
+      country: params.country || 'US',
+      max_reviews: params.max_reviews || 5,
+      multi_country: true,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Fetch Reviews Error:', error);
+    throw error;
+  }
 }
 
 /**
- * Export analysis results
+ * Export analysis results to CSV or PDF
  */
-export async function exportAnalysis(request: ExportRequest): Promise<ExportResponse> {
-  const response = await apiClient.post<ExportResponse>(
-    `${API_PREFIX}/export/`,
-    request
-  );
-  return response.data;
+export async function exportAnalysis(params: ExportRequest): Promise<ExportResponse> {
+  try {
+    const response = await apiClient.post<ExportResponse>('/api/export/', {
+      asin: params.asin,
+      format: params.format,
+      include_raw_reviews: params.include_raw_reviews ?? (params.format === 'csv'),
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Export Analysis Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get download URL for exported file
+ */
+export function getDownloadUrl(filename: string): string {
+  return `${API_BASE_URL}/api/export/download/${filename}`;
 }
 
 /**
  * Download exported file
  */
-export function getDownloadUrl(filename: string): string {
-  return `${API_BASE_URL}${API_PREFIX}/export/download/${filename}`;
-}
-
-/**
- * Health check with service status
- */
-export async function healthCheck(): Promise<HealthCheckResponse> {
-  const response = await apiClient.get('/health');
-  return response.data;
-}
-
-/**
- * Get service status
- */
-export async function getServiceStatus(): Promise<{ apify: ServiceStatus }> {
+export async function downloadExport(filename: string): Promise<void> {
   try {
-    const response = await apiClient.get(`${API_PREFIX}/status`);
+    const url = getDownloadUrl(filename);
+    window.open(url, '_blank');
+  } catch (error) {
+    console.error('Download Export Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Health check endpoint
+ */
+export async function healthCheck(): Promise<{
+  status: string;
+  app_name?: string;
+  version?: string;
+  timestamp: string;
+}> {
+  try {
+    const response = await apiClient.get('/health');
     return response.data;
   } catch (error) {
-    // Fallback if status endpoint doesn't exist yet
-    return {
-      apify: {
-        service: 'apify',
-        status: 'active',
-        max_reviews_limit: 5,
-        description: 'Amazon reviews scraper using Apify'
+    console.error('Health Check Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Validate ASIN format
+ */
+export function isValidAsin(asin: string): boolean {
+  // Amazon ASIN is typically 10 characters: B0[8 alphanumeric chars]
+  const asinRegex = /^[A-Z0-9]{10}$/;
+  return asinRegex.test(asin.toUpperCase());
+}
+
+/**
+ * Extract ASIN from Amazon URL
+ */
+export function extractAsinFromUrl(url: string): string | null {
+  try {
+    // Match various Amazon URL patterns
+    const patterns = [
+      /\/dp\/([A-Z0-9]{10})/,
+      /\/product\/([A-Z0-9]{10})/,
+      /\/gp\/product\/([A-Z0-9]{10})/,
+      /ASIN[=:]([A-Z0-9]{10})/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match && match[1]) {
+        return match[1].toUpperCase();
       }
-    };
-  }
-}
+    }
 
-/**
- * Test API connection
- */
-export async function testConnection(): Promise<{ status: string; message: string }> {
-  try {
-    const response = await apiClient.get('/');
-    return response.data;
+    // If no match and it looks like a plain ASIN, return it
+    if (isValidAsin(url)) {
+      return url.toUpperCase();
+    }
+
+    return null;
   } catch (error) {
-    throw new Error('Cannot connect to backend server');
+    console.error('Extract ASIN Error:', error);
+    return null;
   }
 }
 
 /**
- * Validate ASIN/URL before making API call
+ * Format error message for display
  */
-export function validateInput(input: string): { isValid: boolean; asin?: string; error?: string } {
-  if (!input || input.trim().length === 0) {
-    return { isValid: false, error: 'Please enter an ASIN or Amazon URL' };
+export function formatErrorMessage(error: unknown): string {
+  if (typeof error === 'object' && error !== null) {
+    const err = error as any;
+    return err.error || err.message || 'An unexpected error occurred';
   }
+  return String(error);
+}
 
-  const trimmedInput = input.trim();
-  
-  // Check if it's a valid ASIN (10 characters, alphanumeric)
-  const asinRegex = /^[A-Z0-9]{10}$/i;
-  if (asinRegex.test(trimmedInput.toUpperCase())) {
-    return { isValid: true, asin: trimmedInput.toUpperCase() };
-  }
+/**
+ * Retry mechanism for failed requests
+ */
+export async function retryRequest<T>(
+  requestFn: () => Promise<T>,
+  maxRetries: number = 3,
+  delayMs: number = 1000
+): Promise<T> {
+  let lastError: unknown;
 
-  // Check if it's a valid Amazon URL
-  const urlPatterns = [
-    /amazon\.(com|in|co\.uk|de|fr|it|es|ca|co\.jp|com\.au|com\.br|com\.mx)\/dp\/([A-Z0-9]{10})/i,
-    /amazon\.(com|in|co\.uk|de|fr|it|es|ca|co\.jp|com\.au|com\.br|com\.mx)\/gp\/product\/([A-Z0-9]{10})/i,
-    /amazon\.(com|in|co\.uk|de|fr|it|es|ca|co\.jp|com\.au|com\.br|com\.mx)\/product\/([A-Z0-9]{10})/i,
-  ];
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔄 Attempt ${attempt}/${maxRetries}`);
+      return await requestFn();
+    } catch (error) {
+      lastError = error;
+      console.error(`❌ Attempt ${attempt} failed:`, error);
 
-  for (const pattern of urlPatterns) {
-    const match = trimmedInput.match(pattern);
-    if (match && match[2]) {
-      return { isValid: true, asin: match[2].toUpperCase() };
+      if (attempt < maxRetries) {
+        console.log(`⏳ Waiting ${delayMs}ms before retry...`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        delayMs *= 2; // Exponential backoff
+      }
     }
   }
 
-  return { 
-    isValid: false, 
-    error: 'Please enter a valid Amazon ASIN (10 characters) or product URL' 
-  };
+  throw lastError;
 }
 
-export default apiClient;
+/**
+ * Batch analyze multiple ASINs
+ */
+export async function analyzeBatch(
+  asins: string[],
+  country: string = 'US'
+): Promise<AnalysisResult[]> {
+  const results: AnalysisResult[] = [];
+  const errors: { asin: string; error: string }[] = [];
+
+  for (const asin of asins) {
+    try {
+      console.log(`📊 Analyzing ${asin}...`);
+      const result = await analyzeReviews({ asin, country });
+      results.push(result);
+    } catch (error) {
+      console.error(`Failed to analyze ${asin}:`, error);
+      errors.push({
+        asin,
+        error: formatErrorMessage(error),
+      });
+    }
+  }
+
+  if (errors.length > 0) {
+    console.warn('⚠️ Some analyses failed:', errors);
+  }
+
+  return results;
+}
+
+// Export the axios instance for custom requests if needed
+export { apiClient };
+
+// Re-export types for convenience
+export type { AnalysisResult, ExportRequest, ExportResponse, Review };
