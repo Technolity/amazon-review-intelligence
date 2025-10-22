@@ -1,26 +1,42 @@
-/**
- * TypeScript type definitions for the application.
- * Updated for Apify-only backend with max 5 reviews.
- */
+// Type definitions for Amazon Review Intelligence
 
-export interface KeywordItem {
-  word: string;
-  frequency: number;
-  tfidf_score: number;
-  importance: 'high' | 'medium' | 'low';
-}
-
-export interface SentimentCount {
-  count: number;
-  percentage: number;
+export interface Review {
+  id: string;
+  asin: string;
+  title: string;
+  text: string;
+  rating: number;
+  author: string;
+  date: string;
+  verified_purchase: boolean;
+  helpful_count: number;
+  vine_program?: boolean;
+  country?: string;
+  
+  // AI/NLP fields (added after analysis)
+  ai_sentiment?: string;
+  sentiment_confidence?: number;
+  sentiment_scores?: {
+    positive: number;
+    neutral: number;
+    negative: number;
+    compound: number;
+  };
+  polarity?: number;
+  subjectivity?: number;
+  emotions?: {
+    joy: number;
+    sadness: number;
+    anger: number;
+    fear: number;
+    surprise: number;
+  };
 }
 
 export interface SentimentDistribution {
-  positive: SentimentCount;
-  neutral: SentimentCount;
-  negative: SentimentCount;
-  average_rating: number;
-  median_rating: number;
+  positive: number;
+  neutral: number;
+  negative: number;
 }
 
 export interface RatingDistribution {
@@ -31,82 +47,80 @@ export interface RatingDistribution {
   '1_star': number;
 }
 
-export interface TemporalTrend {
-  month: string;
-  review_count: number;
-  average_rating: number;
+export interface Keyword {
+  word: string;
+  frequency: number;
+  relevance?: number;
 }
 
-export interface KeywordAnalysis {
-  top_keywords: KeywordItem[];
-  total_unique_words: number;
+export interface Theme {
+  theme: string;
+  mentions: number;
+  sentiment: string;
+  confidence: number;
+  keywords?: string[];
 }
 
-export interface TemporalTrends {
-  monthly_data: TemporalTrend[];
-  trend: 'increasing' | 'decreasing' | 'stable' | 'unknown';
+export interface AggregateMetrics {
+  avg_confidence: number;
+  avg_polarity: number;
+  avg_subjectivity: number;
+}
+
+export interface Insights {
+  insights: string[];
+  summary: string;
+  confidence_level: string;
+}
+
+export interface ProductInfo {
+  asin?: string;
+  title?: string;
+  brand?: string;
+  category?: string;
+  price?: number;
+  currency?: string;
+  in_stock?: boolean;
+  images?: string[];
 }
 
 export interface AnalysisResult {
   success: boolean;
   asin: string;
-  product_title: string;
   total_reviews: number;
-  analyzed_at: string;
+  average_rating?: number;
+  
+  // Sentiment data
   sentiment_distribution: SentimentDistribution;
-  keyword_analysis: KeywordAnalysis;
-  rating_distribution: RatingDistribution;
-  temporal_trends: TemporalTrends;
-  insights: string[];
-  summary: string;
-  max_reviews_limit?: number;
-  api_source?: string;
-}
-
-export interface Review {
-  review_id: string;
-  asin: string;
-  rating: number;
-  review_text: string;
-  review_title: string;
-  review_date: string;
-  verified_purchase: boolean;
-  helpful_votes: number;
-  author?: string;
-  country?: string;
-  source?: string;
-}
-
-export interface ReviewsResponse {
-  success: boolean;
-  asin: string;
-  total_reviews: number;
-  reviews: Review[];
-  product_title: string;
-  fetched_at: string;
-  mock_data?: boolean;
-  api_source?: string;
-  max_reviews_limit?: number;
-  country?: string;
-  product_info?: {
-    title?: string;
-    asin?: string;
-    rating?: number;
-    total_reviews?: number;
-    price?: string;
-  };
+  
+  // Rating distribution (optional)
+  rating_distribution?: RatingDistribution;
+  
+  // Aggregate metrics
+  aggregate_metrics?: AggregateMetrics;
+  
+  // Themes and keywords
+  themes?: Theme[];
+  top_keywords?: Keyword[];
+  
+  // Insights
+  insights?: Insights;
+  
+  // Reviews (subset with AI analysis)
+  reviews?: Review[];
+  
+  // Product information
+  product_info?: ProductInfo;
+  
+  // Metadata
+  data_source?: string;
+  ai_provider?: string;
+  models_used?: string[];
+  generated_at?: string;
+  
+  // Error handling
   error?: string;
   error_type?: string;
-  suggestion?: string;
-}
-
-export interface AnalyzeRequest {
-  input: string;  // ASIN or URL
-  keyword?: string;
-  fetch_new?: boolean;
-  country?: string;  // Country code
-  multi_country?: boolean;
-  max_reviews?: number; // Max 5 for Apify
 }
 
 export interface ExportRequest {
@@ -117,53 +131,7 @@ export interface ExportRequest {
 
 export interface ExportResponse {
   success: boolean;
-  file_path: string;
-  file_size: number;
-  format: string;
-  download_url: string;
-}
-
-export interface ApiError {
-  success: false;
-  error: string;
-  detail?: string;
-  error_type?: string;
-  suggestion?: string;
-  asin?: string;
-  country?: string;
-}
-
-export interface ServiceStatus {
-  service: string;
-  status: 'active' | 'inactive' | 'error';
-  max_reviews_limit: number;
-  description?: string;
+  file_path?: string;
+  download_url?: string;
   error?: string;
-}
-
-export interface HealthCheckResponse {
-  status: string;
-  timestamp: string;
-  services: {
-    apify: ServiceStatus;
-  };
-}
-
-// Graph Node Types for React Flow
-export interface GraphNode {
-  id: string;
-  type: string;
-  position: { x: number; y: number };
-  data: {
-    label: string;
-    value?: number;
-    sentiment?: 'positive' | 'neutral' | 'negative';
-  };
-}
-
-export interface GraphEdge {
-  id: string;
-  source: string;
-  target: string;
-  animated?: boolean;
 }
