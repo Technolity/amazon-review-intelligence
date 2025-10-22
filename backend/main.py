@@ -11,8 +11,8 @@ import uvicorn
 import os
 
 from app.core.config import settings
-from backend.app.services.mock_data import mock_generator
-from backend.app.services.free_ai_nlp import free_ai_nlp
+from app.services.mock_data import mock_generator
+from app.services.free_ai_nlp import free_ai_nlp
 
 # Lifespan context manager
 @asynccontextmanager

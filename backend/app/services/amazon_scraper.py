@@ -68,7 +68,7 @@ class AmazonScraper:
                 if not result.get('success') or result.get('total_reviews', 0) == 0:
                     err = result.get('error', 'Apify returned no reviews')
                     print(f"  ❌ Apify failed/empty for {country}: {err} → falling back to mock")
-                    from backend.app.services.mock_data import mock_service
+                    from app.services.mock_data import mock_service
                     mock = mock_service.fetch_reviews(asin, actual_max_reviews, country)
                     mock['country'] = country
                     mock['max_reviews_limit'] = 5
@@ -82,7 +82,7 @@ class AmazonScraper:
 
             except Exception as e:
                 print(f"  ❌ Apify exception for {country}: {e} → falling back to mock")
-                from backend.app.services.mock_data import mock_service
+                from app.services.mock_data import mock_service
                 mock = mock_service.fetch_reviews(asin, actual_max_reviews, country)
                 mock['country'] = country
                 mock['max_reviews_limit'] = 5
@@ -92,7 +92,7 @@ class AmazonScraper:
         
         # Fallback (should not happen since we only use Apify)
         print("🎭 Using mock data fallback")
-        from backend.app.services.mock_data import mock_service
+        from app.services.mock_data import mock_service
         result = mock_service.fetch_reviews(asin, actual_max_reviews, country)
         result['country'] = country
         result['max_reviews_limit'] = 5
@@ -121,7 +121,7 @@ class AmazonScraper:
                 else:
                     error_msg = result.get('error', 'Apify returned no reviews')
                     print(f"  ❌ Apify failed/empty for {country}: {error_msg} → trying mock")
-                    from backend.app.services.mock_data import mock_service
+                    from app.services.mock_data import mock_service
                     mock = mock_service.fetch_reviews(asin, max_reviews, country)
                     if mock.get('success') and mock.get('total_reviews', 0) > 0:
                         print(f"  ✅ Mock success for {country}")
@@ -135,7 +135,7 @@ class AmazonScraper:
                         print(f"  ❌ Mock also empty for {country}")
             except Exception as e:
                 print(f"  ❌ Apify exception for {country}: {e} → trying mock")
-                from backend.app.services.mock_data import mock_service
+                from app.services.mock_data import mock_service
                 mock = mock_service.fetch_reviews(asin, max_reviews, country)
                 if mock.get('success') and mock.get('total_reviews', 0) > 0:
                     print(f"  ✅ Mock success for {country}")
