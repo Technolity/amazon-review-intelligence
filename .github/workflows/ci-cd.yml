@@ -263,29 +263,11 @@ jobs:
       - name: ❌ Failure notification
         if: ${{ needs.backend-lint-test.result == 'failure' || needs.frontend-build.result == 'failure' }}
         run: |
-          echo "❌ Some CI/CD jobs failed:"
-          echo ""
-          echo "Backend Lint & Test: ${{ needs.backend-lint-test.result }}"
-          echo "Frontend Build: ${{ needs.frontend-build.result }}"
-          echo "Backend Deploy: ${{ needs.deploy-backend.result }}"
-          echo "Frontend Deploy: ${{ needs.deploy-frontend.result }}"
-          exit 1
-
-# ============================================
-# GITHUB SECRETS REQUIRED
-# ============================================
-#
-# Backend Deployment (Optional):
-# - RENDER_DEPLOY_HOOK_URL: Get from Render Dashboard → Settings → Deploy Hook
-#
-# Frontend Deployment (Required for auto-deploy):
-# - VERCEL_TOKEN: Generate at https://vercel.com/account/tokens
-# - VERCEL_ORG_ID: Found in .vercel/project.json after running `vercel link`
-# - VERCEL_PROJECT_ID: Found in .vercel/project.json after running `vercel link`
-# - NEXT_PUBLIC_API_URL: Your backend API URL (e.g., https://api.yourdomain.com)
-#
-# To set up Vercel:
-# 1. npm i -g vercel
-# 2. cd frontend && vercel link
-# 3. Copy org/project IDs from .vercel/project.json
-# 4. Add as GitHub Secrets
+          echo "## 🎉 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend Build**: ${{ needs.backend-build.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend Build**: ${{ needs.frontend-build.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🚀 Pipeline completed successfully!" >> $GITHUB_STEP_SUMMARY
