@@ -401,6 +401,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ by Scalez Media**
+**Made with ❤️ by Technolity**
 
 ⭐ Star this repo if you find it helpful!
+
