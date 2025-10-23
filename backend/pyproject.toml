@@ -1,0 +1,195 @@
+# ========================================
+# Amazon Review Intelligence - Project Configuration
+# Python 3.11+ | Setuptools Backend
+# ========================================
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amazon-review-intelligence"
+version = "1.0.0"
+description = "AI-powered Amazon product review analysis with sentiment tracking and insights"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = {text = "MIT"}
+authors = [
+    {name = "Scalez Media", email = "support@scalezmedia.com"}
+]
+keywords = [
+    "amazon",
+    "reviews",
+    "sentiment-analysis",
+    "nlp",
+    "fastapi",
+    "machine-learning",
+    "ai"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Linguistic",
+]
+
+dependencies = [
+    # Core Framework
+    "fastapi>=0.115.0,<0.116.0",
+    "uvicorn[standard]>=0.34.0,<0.35.0",
+    "python-dotenv>=1.0.0,<2.0.0",
+    "pydantic>=2.10.0,<3.0.0",
+    "pydantic-settings>=2.7.0,<3.0.0",
+    "starlette>=0.41.0,<0.42.0",
+    
+    # Data Processing
+    "pandas>=2.2.0,<3.0.0",
+    "numpy>=2.2.0,<3.0.0",
+    
+    # Machine Learning & NLP
+    "torch>=2.6.0,<3.0.0",
+    "scikit-learn>=1.6.0,<2.0.0",
+    "scipy>=1.16.0,<2.0.0",
+    
+    # NLP Libraries
+    "nltk>=3.9.0,<4.0.0",
+    "spacy>=3.8.0,<4.0.0",
+    "textblob>=0.18.0",
+    "vaderSentiment>=3.3.0,<4.0.0",
+    
+    # Web Scraping
+    "apify-client>=2.2.0,<3.0.0",
+    "beautifulsoup4>=4.12.0,<5.0.0",
+    "lxml>=5.3.0,<6.0.0",
+    "requests>=2.32.0,<3.0.0",
+    "httpx>=0.28.0,<0.29.0",
+    
+    # AI Integration
+    "openai>=1.59.0,<2.0.0",
+    
+    # Document Export
+    "reportlab>=4.2.0,<5.0.0",
+    "openpyxl>=3.1.0,<4.0.0",
+    "XlsxWriter>=3.2.0,<4.0.0",
+    "pypdf>=5.1.0,<6.0.0",
+    
+    # Database
+    "SQLAlchemy>=2.0.0,<3.0.0",
+    "psycopg2-binary>=2.9.0,<3.0.0",
+    
+    # Utilities
+    "python-multipart>=0.0.20,<0.1.0",
+    "PyYAML>=6.0.0,<7.0.0",
+    "python-dateutil>=2.9.0",
+    "pytz>=2024.0",
+    "typer>=0.20.0,<0.21.0",
+    "rich>=14.2.0,<15.0.0",
+    "click>=8.3.0,<9.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0,<9.0.0",
+    "pytest-asyncio>=0.24.0,<0.25.0",
+    "pytest-cov>=6.0.0,<7.0.0",
+    "watchfiles>=1.1.0,<2.0.0",
+    "black>=24.0.0",
+    "flake8>=7.0.0",
+    "mypy>=1.11.0",
+]
+
+test = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.28.0",
+]
+
+all = [
+    "amazon-review-intelligence[dev,test]"
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/amazon-review-intelligence"
+Documentation = "https://github.com/yourusername/amazon-review-intelligence/wiki"
+Repository = "https://github.com/yourusername/amazon-review-intelligence"
+Issues = "https://github.com/yourusername/amazon-review-intelligence/issues"
+
+[project.scripts]
+ari-server = "app.main:run_server"
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.setuptools.package-data]
+app = ["**/*.json", "**/*.yaml", "**/*.yml"]
+
+# ========================================
+# Development Tools Configuration
+# ========================================
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--verbose",
+    "--strict-markers",
+    "--cov=app",
+    "--cov-report=html",
+    "--cov-report=term-missing",
+]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.eggs
+  | \.tox
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
