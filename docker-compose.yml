@@ -1,9 +1,9 @@
 # ========================================
 # Docker Compose - Amazon Review Intelligence
-# For local development and testing
+# Local Development & Production
 # ========================================
 
-version: '3.8'
+version: '3.9'
 
 services:
   # ========================================
@@ -13,40 +13,46 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
     container_name: review-intelligence-api
     restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
-      # App Configuration
-      - DEBUG=True
-      - ENVIRONMENT=development
+      # Application Settings
+      - DEBUG=${DEBUG:-True}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
       - HOST=0.0.0.0
       - PORT=8000
+      - WORKERS=${WORKERS:-2}
       
-      # API Keys (Load from .env file)
+      # API Keys (from .env file)
       - APIFY_API_TOKEN=${APIFY_API_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       
       # Features
-      - ENABLE_AI=True
-      - ENABLE_EMOTIONS=True
+      - ENABLE_AI=${ENABLE_AI:-True}
+      - ENABLE_EMOTIONS=${ENABLE_EMOTIONS:-True}
+      - DATA_SOURCE=${DATA_SOURCE:-mock}
       
       # Analysis Settings
-      - MAX_REVIEWS_PER_REQUEST=100
+      - MAX_REVIEWS_PER_REQUEST=${MAX_REVIEWS_PER_REQUEST:-100}
       
       # CORS
-      - ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       
-      # Database (if using PostgreSQL)
-      # - DATABASE_URL=postgresql://user:password@postgres:5432/dbname
+      # Database
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/reviews.db}
       
-      # Redis (if using caching)
-      # - REDIS_URL=redis://redis:6379/0
+      # Redis (optional)
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     
     volumes:
-      # Mount code for hot reload in development
-      - ./backend/app:/app/app
+      # Mount code for development hot reload
+      - ./backend/app:/app/app:ro
+      - ./backend/main.py:/app/main.py:ro
+      
       # Persist data
       - backend-data:/app/data
       - backend-exports:/app/exports
@@ -63,11 +69,11 @@ services:
       start_period: 40s
     
     depends_on:
-      - redis
-      # - postgres  # Uncomment if using PostgreSQL
+      redis:
+        condition: service_healthy
 
   # ========================================
-  # Redis Cache (Optional)
+  # Redis Cache (Optional but Recommended)
   # ========================================
   redis:
     image: redis:7-alpine
@@ -79,53 +85,36 @@ services:
       - redis-data:/data
     networks:
       - app-network
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
 
   # ========================================
   # PostgreSQL Database (Optional)
+  # Uncomment to use PostgreSQL instead of SQLite
   # ========================================
   # postgres:
-  #   image: postgres:15-alpine
+  #   image: postgres:16-alpine
   #   container_name: review-intelligence-db
   #   restart: unless-stopped
   #   ports:
   #     - "5432:5432"
   #   environment:
-  #     - POSTGRES_USER=reviewuser
-  #     - POSTGRES_PASSWORD=reviewpass
-  #     - POSTGRES_DB=reviewdb
+  #     - POSTGRES_USER=${POSTGRES_USER:-reviewuser}
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-reviewpass}
+  #     - POSTGRES_DB=${POSTGRES_DB:-reviewdb}
   #   volumes:
   #     - postgres-data:/var/lib/postgresql/data
   #   networks:
   #     - app-network
   #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U reviewuser"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-
-  # ========================================
-  # Frontend (Optional - for full stack)
-  # ========================================
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   container_name: review-intelligence-frontend
-  #   restart: unless-stopped
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     - NEXT_PUBLIC_API_URL=http://backend:8000
-  #   depends_on:
-  #     - backend
-  #   networks:
-  #     - app-network
+  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-reviewuser}"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
 # ========================================
 # Networks
@@ -133,6 +122,9 @@ services:
 networks:
   app-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 # ========================================
 # Volumes
