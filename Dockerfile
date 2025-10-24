@@ -46,7 +46,7 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
-    PORT=8000 \
+    PORT=10000 \
     NLTK_DATA=/home/appuser/nltk_data
 
 # Create non-root user for security
@@ -69,12 +69,16 @@ COPY --chown=appuser:appuser backend/ .
 # Switch to non-root user
 USER appuser
 
-# Expose port
-EXPOSE 8000
+# Expose port (use Render's default PORT)
+EXPOSE 10000
 
-# Health check
+# Health check (use the actual PORT)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:$PORT/health || exit 1
 
 # Run the application - FIXED IMPORT PATH
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# Option A: If your main.py is directly in the backend folder
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000", "--workers", "2"]
+
+# OR Option B: If you want to use the PORT environment variable
+# CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2"]
