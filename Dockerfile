@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first (for better caching)
-COPY requirements.txt .
+COPY backend/requirements.txt .
 
 # Create virtual environment and install dependencies
 RUN python -m venv /opt/venv
@@ -63,8 +63,8 @@ COPY --from=builder /opt/venv /opt/venv
 # Copy NLTK data from builder
 COPY --from=builder /root/nltk_data /home/appuser/nltk_data
 
-# Copy application code
-COPY --chown=appuser:appuser . .
+# Copy backend application code
+COPY --chown=appuser:appuser backend/ .
 
 # Switch to non-root user
 USER appuser
@@ -76,5 +76,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application - FIXED THE PORT ISSUE
+# Run the application - FIXED IMPORT PATH
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
