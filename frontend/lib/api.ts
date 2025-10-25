@@ -98,7 +98,7 @@ export async function analyzeReviews(params: {
 
     console.log('📤 Sending analysis request:', requestData);
     
-    const response = await apiClient.post<AnalysisResult>('api/v1/analyze', requestData); // Fixed endpoint
+    const response = await apiClient.post<AnalysisResult>('/api/v1/analyze', requestData); // Fixed endpoint
     console.log('📥 Analysis response received');
     return response.data;
   } catch (error) {
