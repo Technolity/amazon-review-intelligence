@@ -155,7 +155,7 @@ export default function Dashboard() {
 
         {!sidebarCollapsed && analysis && (
           <aside className="hidden lg:block w-80 border-l p-4">
-            <InsightsPanel analysis={analysis} onViewDetails={() => setShowDetailedView(true)} />
+            <InsightsPanel analysis={analysis} />
           </aside>
         )}
       </div>
