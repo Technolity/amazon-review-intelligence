@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -26,6 +27,7 @@
     --radius: 0.5rem;
   }
 
+
   .dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
@@ -49,6 +51,7 @@
   }
 }
 
+
 @layer base {
   * {
     @apply border-border;
@@ -58,6 +61,7 @@
   }
 }
 
+
 /* Optimized scrollbar */
 @supports (scrollbar-width: thin) {
   * {
@@ -66,22 +70,27 @@
   }
 }
 
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 
 ::-webkit-scrollbar-thumb {
   @apply bg-border rounded-full;
 }
 
+
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-muted-foreground;
 }
+
 
 /* Performance optimizations */
 @layer utilities {
@@ -97,5 +106,77 @@
   
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+}
+
+
+/* NEW: Premium Animations */
+@layer components {
+  /* Bar chart hover - removes white background, adds smooth pop */
+  .recharts-tooltip-cursor {
+    fill: transparent !important;
+  }
+  
+  .recharts-bar-rectangle {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .recharts-bar-rectangle:hover {
+    filter: brightness(1.15);
+    transform: translateY(-3px);
+  }
+  
+  .recharts-bar rect {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+
+@layer utilities {
+  /* Button click animation - subtle scale down */
+  .btn-active-scale {
+    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .btn-active-scale:active {
+    transform: scale(0.97);
+  }
+  
+  /* Card hover lift effect */
+  .card-hover-lift {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .card-hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 
+                0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Smooth fade in */
+  .fade-in {
+    animation: fadeIn 0.5s ease-in;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  /* Slide in from bottom */
+  .slide-in-bottom {
+    animation: slideInBottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  @keyframes slideInBottom {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }

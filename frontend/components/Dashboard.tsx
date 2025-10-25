@@ -8,6 +8,8 @@ import InsightsPanel from './InsightsPanel';
 import DetailedInsights from './DetailedInsights';
 import { useToast } from '@/hooks/use-toast';
 import type { AnalysisResult } from '@/types';
+import type { Review } from '@/types';
+import type { RatingDistribution } from '@/types';
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -20,32 +22,25 @@ export default function Dashboard() {
   const [showDetailedView, setShowDetailedView] = useState(false);
   const { toast } = useToast();
 
-  const handleAnalyze = async (asin: string) => {
+  const handleAnalyze = async (asin: string, maxReviews: number) => {
     setIsLoading(true);
     setCurrentAsin(asin);
-    setShowDetailedView(false); // Reset to overview when new analysis starts
+    setShowDetailedView(false);
 
     try {
-      console.log('🔍 Analyzing ASIN:', asin);
-      console.log('📡 API URL:', API_URL);
-
       toast({
         title: 'Starting Analysis',
-        description: `Analyzing reviews for ASIN: ${asin}`,
+        description: `Analyzing ${maxReviews} reviews for ASIN: ${asin}`,
       });
 
       const response = await axios.post(`${API_URL}/api/v1/analyze`, {
         asin: asin,
-        max_reviews: 50,
+        max_reviews: maxReviews,
         enable_ai: true,
       }, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000,
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 60000,
       });
-
-      console.log('✅ Response received:', response.data);
 
       if (response.data.success) {
         setAnalysis(response.data);
@@ -57,23 +52,9 @@ export default function Dashboard() {
         throw new Error(response.data.error || 'Analysis failed');
       }
     } catch (error: any) {
-      console.error('❌ Analysis error:', error);
-      
-      let errorMessage = 'An error occurred';
-      
-      if (error.code === 'ECONNREFUSED') {
-        errorMessage = 'Cannot connect to backend. Is it running on port 8000?';
-      } else if (error.response) {
-        errorMessage = error.response?.data?.detail || error.message;
-      } else if (error.request) {
-        errorMessage = 'No response from server. Check if backend is running.';
-      } else {
-        errorMessage = error.message;
-      }
-
       toast({
         title: 'Analysis Failed',
-        description: errorMessage,
+        description: error.response?.data?.detail || error.message || 'An error occurred',
         variant: 'destructive',
       });
     } finally {
@@ -82,7 +63,7 @@ export default function Dashboard() {
   };
 
   const handleExport = async (format: 'csv' | 'pdf') => {
-    if (!currentAsin) {
+    if (!analysis) {
       toast({
         title: 'No Data',
         description: 'Please analyze a product first',
@@ -93,39 +74,47 @@ export default function Dashboard() {
 
     try {
       toast({
-        title: 'Exporting...',
-        description: `Generating ${format.toUpperCase()} report`,
+        title: 'Generating Export...',
+        description: `Creating ${format.toUpperCase()} file`,
       });
 
-      const response = await axios.post(
-        `${API_URL}/api/v1/export`,
-        {
-          asin: currentAsin,
-          format: format,
-          include_raw_reviews: true,
-        },
-        { responseType: 'blob' }
-      );
+      if (format === 'csv') {
+        let csvContent = 'ASIN,Total Reviews,Average Rating,Positive,Neutral,Negative\n';
+        csvContent += `${currentAsin},${analysis.total_reviews},${analysis.average_rating},`;
+        csvContent += `${analysis.sentiment_distribution?.positive || 0},`;
+        csvContent += `${analysis.sentiment_distribution?.neutral || 0},`;
+        csvContent += `${analysis.sentiment_distribution?.negative || 0}\n`;
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `analysis_${currentAsin}.${format}`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `review-analysis-${currentAsin}.csv`;
+        link.click();
+      } else {
+        // For PDF, you'll need to install: npm install jspdf
+        const { jsPDF } = await import('jspdf');
+        const pdf = new jsPDF();
+        
+        pdf.setFontSize(20);
+        pdf.text('Review Analysis Report', 20, 20);
+        pdf.setFontSize(12);
+        pdf.text(`ASIN: ${currentAsin}`, 20, 35);
+        pdf.text(`Total Reviews: ${analysis.total_reviews}`, 20, 45);
+        pdf.text(`Average Rating: ${analysis.average_rating?.toFixed(2)}`, 20, 55);
+        
+        pdf.save(`review-analysis-${currentAsin}.pdf`);
+      }
 
       toast({
         title: 'Export Complete',
-        description: `Downloaded ${format.toUpperCase()} report`,
+        description: `Downloaded ${format.toUpperCase()} successfully`,
       });
     } catch (error: any) {
       toast({
         title: 'Export Failed',
-        description: error.message || 'An error occurred',
+        description: error.message,
         variant: 'destructive',
       });
-      console.error('Export error:', error);
     }
   };
 
@@ -133,78 +122,42 @@ export default function Dashboard() {
     setAnalysis(null);
     setCurrentAsin('');
     setShowDetailedView(false);
-    toast({
-      title: 'Reset Complete',
-      description: 'Dashboard has been reset',
-    });
   };
 
-  const handleSearch = async (query: string) => {
-    if (query.length === 10 && query[0] === 'B') {
-      handleAnalyze(query.toUpperCase());
-    } else {
-      toast({
-        title: 'Invalid ASIN',
-        description: 'Please enter a valid 10-character ASIN starting with B',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const toggleSidebar = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
-  };
-
-  const handleViewDetails = () => {
-    setShowDetailedView(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleBackToOverview = () => {
-    setShowDetailedView(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Show detailed insights view
   if (showDetailedView && analysis) {
-    return <DetailedInsights analysis={analysis} onBack={handleBackToOverview} />;
+    return <DetailedInsights analysis={analysis} onBack={() => setShowDetailedView(false)} />;
   }
 
-  // Show main dashboard
   return (
-    <div className="flex flex-col h-screen bg-background">
-      {/* Top Navbar */}
-      <Navbar 
-        onExport={handleExport} 
-        onSearch={handleSearch}
-        onToggleSidebar={toggleSidebar}
+    <div className="min-h-screen bg-background">
+      <Navbar
+        onExport={handleExport}
+        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
         sidebarCollapsed={sidebarCollapsed}
       />
 
-      {/* Main Content - 3 Column Layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar - Filters (Hidden on mobile when viewing analysis) */}
-        <div className={analysis ? "hidden lg:block" : "block"}>
-          <SidebarFilters
-            onAnalyze={handleAnalyze}
-            onReset={handleReset}
-            isLoading={isLoading}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={toggleSidebar}
-          />
-        </div>
-
-        {/* Center - Graph Area */}
-        <GraphArea 
-          analysis={analysis} 
+      <div className="flex">
+        <SidebarFilters
+          onAnalyze={handleAnalyze}
+          onReset={handleReset}
           isLoading={isLoading}
-          onViewDetails={handleViewDetails}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
 
-        {/* Right - Insights Panel (Hidden on mobile, shown on desktop) */}
-        <div className="hidden xl:block">
-          <InsightsPanel analysis={analysis} />
-        </div>
+        <main className="flex-1 p-4 md:p-6">
+          <GraphArea
+            analysis={analysis}
+            isLoading={isLoading}
+            onViewDetails={() => setShowDetailedView(true)}
+          />
+        </main>
+
+        {!sidebarCollapsed && analysis && (
+          <aside className="hidden lg:block w-80 border-l p-4">
+            <InsightsPanel analysis={analysis} onViewDetails={() => setShowDetailedView(true)} />
+          </aside>
+        )}
       </div>
     </div>
   );

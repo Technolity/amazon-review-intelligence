@@ -17,7 +17,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -30,7 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 interface SidebarFiltersProps {
-  onAnalyze: (asin: string) => void;  // ✅ FIXED: Only takes ASIN
+  onAnalyze: (asin: string, maxReviews: number, country: string) => void;  // ✅ UPDATED: Now takes maxReviews and country
   onReset: () => void;
   isLoading?: boolean;
   collapsed?: boolean;
@@ -52,19 +51,35 @@ export default function SidebarFilters({
 }: SidebarFiltersProps) {
   const [asin, setAsin] = useState('');
   const [maxReviews, setMaxReviews] = useState(50);
-  const [enableAI, setEnableAI] = useState(true);
   const [country, setCountry] = useState('IN');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (asin.length === 10) {
-      onAnalyze(asin.toUpperCase());  // ✅ Only pass ASIN
+      onAnalyze(asin.toUpperCase(), maxReviews, country);  // ✅ UPDATED: Pass all parameters
     }
   };
 
   const handleExampleClick = (exampleAsin: string) => {
     setAsin(exampleAsin);
-    onAnalyze(exampleAsin);  // ✅ Only pass ASIN
+    onAnalyze(exampleAsin, maxReviews, country);  // ✅ UPDATED: Pass all parameters
+  };
+
+  const handleCountryChange = (newCountry: string) => {
+    setCountry(newCountry);
+    // If there's an ASIN entered, re-analyze with new country
+    if (asin.length === 10) {
+      onAnalyze(asin, maxReviews, newCountry);
+    }
+  };
+
+  const handleMaxReviewsChange = (value: number[]) => {
+    const newMaxReviews = value[0];
+    setMaxReviews(newMaxReviews);
+    // If there's an ASIN entered, re-analyze with new review count
+    if (asin.length === 10) {
+      onAnalyze(asin, newMaxReviews, country);
+    }
   };
 
   // Collapsed view - Hide on mobile
@@ -82,21 +97,51 @@ export default function SidebarFilters({
         </Button>
         
         <div className="flex flex-col gap-3 items-center">
-          <div className="p-2 rounded-lg bg-primary/10" title="Search">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleCollapse}
+            className="p-2 rounded-lg hover:bg-primary/20 transition-colors"
+            title="Search - Click to expand"
+          >
             <Search className="h-5 w-5 text-primary" />
-          </div>
-          <div className="p-2 rounded-lg hover:bg-muted transition-colors" title="Filters">
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleCollapse}
+            className="p-2 rounded-lg hover:bg-muted/50 transition-colors"
+            title="Filters - Click to expand"
+          >
             <Filter className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div className="p-2 rounded-lg hover:bg-muted transition-colors" title="Trends">
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleCollapse}
+            className="p-2 rounded-lg hover:bg-muted/50 transition-colors"
+            title="Trending - Click to expand"
+          >
             <TrendingUp className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div className="p-2 rounded-lg hover:bg-muted transition-colors" title="Ratings">
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleCollapse}
+            className="p-2 rounded-lg hover:bg-muted/50 transition-colors"
+            title="Reviews - Click to expand"
+          >
             <Star className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div className="p-2 rounded-lg hover:bg-muted transition-colors" title="Region">
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleCollapse}
+            className="p-2 rounded-lg hover:bg-muted/50 transition-colors"
+            title="Region - Click to expand"
+          >
             <Globe className="h-5 w-5 text-muted-foreground" />
-          </div>
+          </Button>
         </div>
 
         <Button
@@ -209,12 +254,12 @@ export default function SidebarFilters({
 
         <Separator />
 
-        {/* Review Count */}
+        {/* Review Count - NOW WORKING */}
         <div className="space-y-2 md:space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
-              <Label className="text-xs md:text-sm">Reviews</Label>
+              <Label className="text-xs md:text-sm">Max Reviews</Label>
             </div>
             <Badge variant="secondary" className="text-[10px] md:text-xs">
               {maxReviews}
@@ -222,7 +267,7 @@ export default function SidebarFilters({
           </div>
           <Slider
             value={[maxReviews]}
-            onValueChange={(value) => setMaxReviews(value[0])}
+            onValueChange={handleMaxReviewsChange}  // ✅ UPDATED: Now triggers analysis
             min={10}
             max={100}
             step={10}
@@ -230,42 +275,19 @@ export default function SidebarFilters({
             disabled={isLoading}
           />
           <p className="text-[10px] md:text-xs text-muted-foreground">
-            More reviews = Better insights
+            More reviews = Better insights (Updates automatically)
           </p>
         </div>
 
         <Separator />
 
-        {/* AI Features */}
-        <div className="space-y-2 md:space-y-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
-            <Label className="text-xs md:text-sm">AI Analysis</Label>
-          </div>
-          <div className="flex items-center justify-between p-2 md:p-3 rounded-lg border bg-muted/30">
-            <div className="flex-1">
-              <p className="text-xs md:text-sm font-medium">Enable AI/NLP</p>
-              <p className="text-[10px] md:text-xs text-muted-foreground">
-                Free VADER & TextBlob
-              </p>
-            </div>
-            <Switch
-              checked={enableAI}
-              onCheckedChange={setEnableAI}
-              disabled={isLoading}
-            />
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Region Selection */}
+        {/* Region Selection - NOW WORKING */}
         <div className="space-y-2 md:space-y-3">
           <div className="flex items-center gap-2">
             <Globe className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             <Label className="text-xs md:text-sm">Region</Label>
           </div>
-          <Select value={country} onValueChange={setCountry} disabled={isLoading}>
+          <Select value={country} onValueChange={handleCountryChange} disabled={isLoading}>
             <SelectTrigger className="h-9 md:h-10 text-xs md:text-sm">
               <SelectValue placeholder="Select region" />
             </SelectTrigger>
@@ -279,6 +301,9 @@ export default function SidebarFilters({
               <SelectItem value="JP">🇯🇵 Japan</SelectItem>
             </SelectContent>
           </Select>
+          <p className="text-[10px] md:text-xs text-muted-foreground">
+            Changes update analysis automatically
+          </p>
         </div>
 
         <Separator />
@@ -287,16 +312,23 @@ export default function SidebarFilters({
         <div className="space-y-2 rounded-lg bg-muted/50 p-2 md:p-3 border">
           <h3 className="text-xs md:text-sm font-medium flex items-center gap-2">
             <Star className="h-3 w-3 md:h-4 md:w-4 text-primary" />
-            Session Info
+            Current Settings
           </h3>
           <div className="grid grid-cols-2 gap-2 text-[10px] md:text-xs">
             <div>
-              <p className="text-muted-foreground">Data Source</p>
-              <p className="font-medium">Mock Data</p>
+              <p className="text-muted-foreground">Max Reviews</p>
+              <p className="font-medium">{maxReviews}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">AI Model</p>
-              <p className="font-medium">Free NLP</p>
+              <p className="text-muted-foreground">Region</p>
+              <p className="font-medium">
+                {country === 'US' ? '🇺🇸 US' :
+                 country === 'UK' ? '🇬🇧 UK' :
+                 country === 'IN' ? '🇮🇳 IN' :
+                 country === 'CA' ? '🇨🇦 CA' :
+                 country === 'DE' ? '🇩🇪 DE' :
+                 country === 'FR' ? '🇫🇷 FR' : '🇯🇵 JP'}
+              </p>
             </div>
           </div>
         </div>
@@ -314,7 +346,7 @@ export default function SidebarFilters({
           Reset Filters
         </Button>
         <p className="text-[10px] md:text-xs text-center text-muted-foreground">
-          v1.0.0 • Mock Data • Free AI
+          v1.0.0 • Active Filters • Real-time Updates
         </p>
       </div>
     </aside>

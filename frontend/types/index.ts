@@ -45,6 +45,12 @@ export interface RatingDistribution {
   '3_star': number;
   '2_star': number;
   '1_star': number;
+  // ADDED: Support for both naming conventions (backend compatibility)
+  '5'?: number;
+  '4'?: number;
+  '3'?: number;
+  '2'?: number;
+  '1'?: number;
 }
 
 export interface Keyword {
@@ -71,6 +77,9 @@ export interface Insights {
   insights: string[];
   summary: string;
   confidence_level: string;
+  // ADDED: Support for strengths and weaknesses
+  strengths?: string[];
+  weaknesses?: string[];
 }
 
 export interface ProductInfo {
@@ -82,6 +91,16 @@ export interface ProductInfo {
   currency?: string;
   in_stock?: boolean;
   images?: string[];
+}
+
+// ADDED: Emotion Analysis interface for GraphArea compatibility
+export interface EmotionAnalysis {
+  joy: number;
+  trust: number;
+  surprise: number;
+  sadness: number;
+  anger: number;
+  fear: number;
 }
 
 export interface AnalysisResult {
@@ -105,6 +124,9 @@ export interface AnalysisResult {
   
   // Insights
   insights?: Insights;
+  
+  // ADDED: Emotion analysis for spider graph
+  emotion_analysis?: EmotionAnalysis;
   
   // Reviews (subset with AI analysis)
   reviews?: Review[];
