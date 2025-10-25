@@ -1,6 +1,5 @@
 /**
- * API Client for Amazon Review Intelligence
- * Corrected to match YOUR actual types/index.ts
+ * API Client for Amazon Review Intelligence - FIXED VERSION
  */
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
@@ -13,14 +12,14 @@ import type {
   Review,
 } from '@/types';
 
-// API Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// API Configuration - UPDATED
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://amazon-review-intelligence.onrender.com';
 const API_TIMEOUT = 120000; // 2 minutes for analysis requests
 
-// Create axios instance
+// Create axios instance - FIXED TIMEOUT
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: API_TIMEOUT,
+  timeout: API_TIMEOUT, // This should now be 120000ms
   headers: {
     'Content-Type': 'application/json',
   },
@@ -30,6 +29,7 @@ const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    console.log(`⏱️ Timeout: ${config.timeout}ms`);
     return config;
   },
   (error) => {
@@ -45,7 +45,15 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
-    console.error('❌ Response Error:', error.response?.data || error.message);
+    console.error('❌ Response Error:', error);
+    
+    if (error.code === 'ECONNABORTED') {
+      throw {
+        success: false,
+        error: 'Request timeout. The analysis is taking longer than expected.',
+        error_type: 'timeout_error',
+      };
+    }
     
     if (error.response) {
       const errorData = error.response.data as any;
@@ -72,8 +80,7 @@ apiClient.interceptors.response.use(
 );
 
 /**
- * Analyze Amazon product reviews
- * Matches your backend /api/analyze/ endpoint
+ * Analyze Amazon product reviews - FIXED ENDPOINT
  */
 export async function analyzeReviews(params: {
   asin: string;
@@ -83,19 +90,23 @@ export async function analyzeReviews(params: {
 }): Promise<AnalysisResult> {
   try {
     const requestData = {
-      input: params.asin,
+      asin: params.asin, // Changed from 'input' to 'asin'
       country: params.country || 'US',
       fetch_new: params.fetch_new ?? true,
       max_reviews: params.max_reviews || 5,
     };
 
-    const response = await apiClient.post<AnalysisResult>('/api/analyze/', requestData);
+    console.log('📤 Sending analysis request:', requestData);
+    
+    const response = await apiClient.post<AnalysisResult>('/api/v1/analyze', requestData); // Fixed endpoint
+    console.log('📥 Analysis response received');
     return response.data;
   } catch (error) {
     console.error('Analyze Reviews Error:', error);
     throw error;
   }
 }
+
 
 /**
  * Fetch raw reviews without full analysis
