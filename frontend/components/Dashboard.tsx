@@ -8,8 +8,6 @@ import InsightsPanel from './InsightsPanel';
 import DetailedInsights from './DetailedInsights';
 import { useToast } from '@/hooks/use-toast';
 import type { AnalysisResult } from '@/types';
-import type { Review } from '@/types';
-import type { RatingDistribution } from '@/types';
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -19,10 +17,11 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentAsin, setCurrentAsin] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showDetailedView, setShowDetailedView] = useState(false);
   const { toast } = useToast();
 
-  const handleAnalyze = async (asin: string, maxReviews: number) => {
+  const handleAnalyze = async (asin: string, maxReviews: number, country: string) => {
     setIsLoading(true);
     setCurrentAsin(asin);
     setShowDetailedView(false);
@@ -36,6 +35,7 @@ export default function Dashboard() {
       const response = await axios.post(`${API_URL}/api/v1/analyze`, {
         asin: asin,
         max_reviews: maxReviews,
+        country: country,
         enable_ai: true,
       }, {
         headers: { 'Content-Type': 'application/json' },
@@ -91,7 +91,6 @@ export default function Dashboard() {
         link.download = `review-analysis-${currentAsin}.csv`;
         link.click();
       } else {
-        // For PDF, you'll need to install: npm install jspdf
         const { jsPDF } = await import('jspdf');
         const pdf = new jsPDF();
         
@@ -129,23 +128,27 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar
         onExport={handleExport}
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
         sidebarCollapsed={sidebarCollapsed}
+        onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+        mobileMenuOpen={mobileMenuOpen}
       />
 
-      <div className="flex">
+      <div className="flex flex-1 overflow-hidden">
         <SidebarFilters
           onAnalyze={handleAnalyze}
           onReset={handleReset}
           isLoading={isLoading}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          mobileOpen={mobileMenuOpen}
+          onMobileClose={() => setMobileMenuOpen(false)}
         />
 
-        <main className="flex-1 p-4 md:p-6">
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
           <GraphArea
             analysis={analysis}
             isLoading={isLoading}
@@ -154,8 +157,10 @@ export default function Dashboard() {
         </main>
 
         {!sidebarCollapsed && analysis && (
-          <aside className="hidden lg:block w-80 border-l p-4">
-            <InsightsPanel analysis={analysis} />
+          <aside className="hidden xl:block w-80 2xl:w-96 border-l overflow-auto">
+            <div className="p-4 sm:p-6">
+              <InsightsPanel analysis={analysis} />
+            </div>
           </aside>
         )}
       </div>
