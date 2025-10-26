@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   TrendingUp, MessageSquare, Star, BarChart3, PieChart as PieChartIcon,
-  Activity, Sparkles, ChevronRight, Eye, Download, Users, TrendingDown
+  Activity, Sparkles, ChevronRight, Eye, Download, Users, TrendingDown, X
 } from 'lucide-react';
 import type { AnalysisResult } from '@/types';
 import { cn } from '@/lib/utils';
@@ -29,6 +29,11 @@ interface GrowthData {
   trend: 'up' | 'down';
 }
 
+interface KeywordData {
+  keyword: string;
+  frequency: number;
+}
+
 const COLORS = {
   positive: '#10b981',
   neutral: '#f59e0b', 
@@ -43,9 +48,9 @@ const COLORS = {
 const RatingTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-background border border-border rounded-lg p-2 sm:p-3 shadow-lg text-xs sm:text-sm">
-        <p className="font-semibold text-foreground">{label}</p>
-        <p className="text-muted-foreground">
+      <div className="bg-background border border-border rounded-lg p-2 md:p-3 shadow-lg">
+        <p className="font-semibold text-sm md:text-base text-foreground">{label}</p>
+        <p className="text-xs md:text-sm text-muted-foreground">
           {payload[0].value} reviews
         </p>
       </div>
@@ -54,21 +59,46 @@ const RatingTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-// Custom tooltip for common themes with frequency
+// Enhanced tooltip for keywords with frequency
+const KeywordTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-background border border-border rounded-lg p-2 md:p-3 shadow-lg min-w-[140px]">
+        <p className="font-semibold text-sm md:text-base text-foreground mb-1">
+          {label}
+        </p>
+        <div className="space-y-1">
+          <p className="text-xs md:text-sm text-muted-foreground flex items-center gap-2">
+            <Activity className="h-3 w-3 md:h-4 md:w-4 text-primary" />
+            <span className="font-medium text-primary">
+              {payload[0].value} mentions
+            </span>
+          </p>
+          <p className="text-[10px] md:text-xs text-muted-foreground">
+            Click to pin this keyword
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+// Custom tooltip for themes with frequency
 const ThemeTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-background border border-border rounded-lg p-2 sm:p-3 shadow-lg text-xs sm:text-sm">
-        <p className="font-semibold text-foreground">{label}</p>
-        <p className="text-muted-foreground">
+      <div className="bg-background border border-border rounded-lg p-2 md:p-3 shadow-lg">
+        <p className="font-semibold text-sm md:text-base text-foreground">{label}</p>
+        <p className="text-xs md:text-sm text-muted-foreground">
           Mentioned {payload[0].value} times
         </p>
         <div className="flex items-center gap-1 mt-1">
           <div 
-            className="w-2 h-2 sm:w-3 sm:h-3 rounded-full"
+            className="w-2 h-2 md:w-3 md:h-3 rounded-full"
             style={{ backgroundColor: payload[0].payload.fill }}
           />
-          <span className="text-xs capitalize">
+          <span className="text-[10px] md:text-xs capitalize">
             {payload[0].payload.sentiment || 'neutral'} sentiment
           </span>
         </div>
@@ -87,7 +117,7 @@ const AnimatedBar = (props: any) => {
     <g>
       <rect
         x={x}
-        y={isHovered ? y - 8 : y}
+        y={isHovered ? y - 8 : y} // Lift up on hover
         width={width}
         height={height}
         fill={fill}
@@ -109,7 +139,7 @@ const AnimatedVerticalBar = (props: any) => {
   return (
     <g>
       <rect
-        x={isHovered ? x - 4 : x}
+        x={isHovered ? x - 4 : x} // Move left on hover for vertical bars
         y={y}
         width={width}
         height={height}
@@ -127,21 +157,22 @@ const AnimatedVerticalBar = (props: any) => {
 export default function GraphArea({ analysis, isLoading, onViewDetails }: GraphAreaProps) {
   const [activeTab, setActiveTab] = useState('overview');
   const [growthData, setGrowthData] = useState<GrowthData[]>([]);
-  const [ecgGrowthData, setEcgGrowthData] = useState<{ date: string; buyers: number; originalBuyers: number }[]>([]);
+  const [selectedKeyword, setSelectedKeyword] = useState<KeywordData | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // Generate ECG-like growth data
+  // Detect mobile viewport
   useEffect(() => {
-    const generateEcgGrowthData = (baseData: GrowthData[]) => {
-      return baseData.map(day => {
-        const ecgVariation = Math.sin(day.buyers * 0.1) * 5 + Math.cos(day.buyers * 0.05) * 3;
-        return {
-          date: day.date,
-          buyers: Math.max(0, day.buyers + ecgVariation),
-          originalBuyers: day.buyers
-        };
-      });
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
     };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
+  // Generate growth data
+  useEffect(() => {
     const mockGrowthData: GrowthData[] = [
       { date: 'Mon', buyers: 120, trend: 'up' },
       { date: 'Tue', buyers: 145, trend: 'up' },
@@ -151,26 +182,20 @@ export default function GraphArea({ analysis, isLoading, onViewDetails }: GraphA
       { date: 'Sat', buyers: 180, trend: 'up' },
       { date: 'Sun', buyers: 195, trend: 'up' },
     ];
-    
     setGrowthData(mockGrowthData);
-    setEcgGrowthData(generateEcgGrowthData(mockGrowthData));
   }, []);
 
+  // Loading state
   if (isLoading) {
     return (
-      <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 bg-gradient-to-br from-background via-background to-muted/20 overflow-y-auto">
-        <div className="flex items-center justify-center h-full min-h-[400px]">
-          <div className="text-center space-y-4 sm:space-y-6 animate-in fade-in duration-700">
-            <div className="relative">
-              <div className="absolute inset-0 animate-ping">
-                <Sparkles className="h-8 w-8 sm:h-12 sm:w-12 md:h-16 md:w-16 mx-auto text-primary opacity-20" />
-              </div>
-              <Sparkles className="relative h-8 w-8 sm:h-12 sm:w-12 md:h-16 md:w-16 mx-auto text-primary animate-pulse" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-base sm:text-lg md:text-xl font-semibold">Analyzing with AI</h3>
-              <p className="text-xs sm:text-sm md:text-base text-muted-foreground max-w-md mx-auto px-4">
-                Processing reviews, extracting insights, and generating visualizations...
+      <main className="flex-1 p-4 md:p-6 lg:p-8 bg-gradient-to-br from-background via-background to-muted/20">
+        <div className="max-w-[1600px] mx-auto space-y-6">
+          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 md:h-16 md:w-16 border-b-2 border-primary" />
+            <div className="space-y-2 text-center">
+              <h2 className="text-lg md:text-xl lg:text-2xl font-bold">Analyzing Reviews...</h2>
+              <p className="text-sm md:text-base text-muted-foreground">
+                This may take a few moments
               </p>
             </div>
           </div>
@@ -179,25 +204,25 @@ export default function GraphArea({ analysis, isLoading, onViewDetails }: GraphA
     );
   }
 
+  // Empty state
   if (!analysis) {
     return (
-      <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 bg-gradient-to-br from-background via-background to-muted/20 overflow-y-auto">
-        <div className="flex items-center justify-center h-full min-h-[400px]">
-          <div className="text-center space-y-4 sm:space-y-6 max-w-md animate-in fade-in duration-700 px-4">
-            <div className="relative">
-              <div className="absolute inset-0 bg-primary/5 blur-3xl rounded-full"></div>
-              <BarChart3 className="relative h-12 w-12 sm:h-16 sm:w-16 md:h-20 md:w-20 mx-auto text-primary/80" />
+      <main className="flex-1 p-4 md:p-6 lg:p-8 bg-gradient-to-br from-background via-background to-muted/20">
+        <div className="max-w-[1600px] mx-auto">
+          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center px-4">
+            <div className="rounded-full bg-muted/50 p-4 md:p-6">
+              <BarChart3 className="h-12 w-12 md:h-16 md:w-16 lg:h-20 lg:w-20 text-primary/80" />
             </div>
-            <div className="space-y-3">
-              <h2 className="text-lg sm:text-xl md:text-2xl font-bold">Ready to Analyze</h2>
-              <p className="text-xs sm:text-sm md:text-base text-muted-foreground leading-relaxed">
+            <div className="space-y-3 max-w-md">
+              <h2 className="text-xl md:text-2xl lg:text-3xl font-bold">Ready to Analyze</h2>
+              <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
                 Enter an Amazon ASIN in the sidebar to unlock powerful AI-driven insights, 
                 sentiment analysis, and visual analytics
               </p>
               <div className="flex gap-2 justify-center flex-wrap pt-2">
-                <Badge variant="outline" className="text-[10px] sm:text-xs">Real-time Analysis</Badge>
-                <Badge variant="outline" className="text-[10px] sm:text-xs">AI Insights</Badge>
-                <Badge variant="outline" className="text-[10px] sm:text-xs">Visual Reports</Badge>
+                <Badge variant="outline" className="text-xs">Real-time Analysis</Badge>
+                <Badge variant="outline" className="text-xs">AI Insights</Badge>
+                <Badge variant="outline" className="text-xs">Visual Reports</Badge>
               </div>
             </div>
           </div>
@@ -213,7 +238,7 @@ export default function GraphArea({ analysis, isLoading, onViewDetails }: GraphA
     { name: 'Negative', value: analysis.sentiment_distribution?.negative || 0, fill: COLORS.negative },
   ].filter(item => item.value > 0);
 
-  const keywordData = (analysis.top_keywords || []).slice(0, 8).map(kw => ({
+  const keywordData: KeywordData[] = (analysis.top_keywords || []).slice(0, 10).map(kw => ({
     keyword: kw.word,
     frequency: kw.frequency,
   }));
@@ -236,11 +261,23 @@ export default function GraphArea({ analysis, isLoading, onViewDetails }: GraphA
 
   // Emotion radar data
   const emotionData = analysis.reviews?.[0]?.emotions ? [
-    { emotion: 'Joy', value: Object.values(analysis.reviews.map(r => r.emotions?.joy || 0)).reduce((a, b) => a + b, 0) / analysis.reviews.length },
+    { 
+      emotion: 'Joy', 
+      value: analysis.reviews.reduce((sum, r) => sum + (r.emotions?.joy || 0), 0) / analysis.reviews.length 
+    },
     { emotion: 'Trust', value: 0.6 },
-    { emotion: 'Surprise', value: Object.values(analysis.reviews.map(r => r.emotions?.surprise || 0)).reduce((a, b) => a + b, 0) / analysis.reviews.length },
-    { emotion: 'Sadness', value: Object.values(analysis.reviews.map(r => r.emotions?.sadness || 0)).reduce((a, b) => a + b, 0) / analysis.reviews.length },
-    { emotion: 'Anger', value: Object.values(analysis.reviews.map(r => r.emotions?.anger || 0)).reduce((a, b) => a + b, 0) / analysis.reviews.length },
+    { 
+      emotion: 'Surprise', 
+      value: analysis.reviews.reduce((sum, r) => sum + (r.emotions?.surprise || 0), 0) / analysis.reviews.length 
+    },
+    { 
+      emotion: 'Sadness', 
+      value: analysis.reviews.reduce((sum, r) => sum + (r.emotions?.sadness || 0), 0) / analysis.reviews.length 
+    },
+    { 
+      emotion: 'Anger', 
+      value: analysis.reviews.reduce((sum, r) => sum + (r.emotions?.anger || 0), 0) / analysis.reviews.length 
+    },
   ] : [];
 
   const totalReviews = analysis.total_reviews || 0;
@@ -249,140 +286,133 @@ export default function GraphArea({ analysis, isLoading, onViewDetails }: GraphA
     ? ((sentimentData.find(s => s.name === 'Positive')?.value || 0) / totalReviews * 100) 
     : 0;
 
-  // Calculate growth metrics
-  const totalBuyers = growthData.reduce((sum, day) => sum + day.buyers, 0);
-  const weeklyGrowth = growthData.length > 1 
-    ? ((growthData[growthData.length - 1].buyers - growthData[0].buyers) / growthData[0].buyers * 100)
-    : 0;
-
-  // Responsive chart heights
+  // Calculate responsive chart heights
   const getChartHeight = () => {
-    if (typeof window === 'undefined') return 300;
-    if (window.innerWidth < 640) return 200;  // Mobile
-    if (window.innerWidth < 1024) return 250; // Tablet
-    return 300; // Desktop
+    if (isMobile) return 250;
+    return 300;
   };
 
-  const chartHeight = getChartHeight();
-  const largeChartHeight = Math.min(getChartHeight() + 50, 350);
+  const getPieChartHeight = () => {
+    if (isMobile) return 300;
+    return 350;
+  };
+
+  // Handle keyword bar click
+  const handleKeywordClick = (data: any) => {
+    if (data && data.keyword) {
+      setSelectedKeyword({
+        keyword: data.keyword,
+        frequency: data.frequency
+      });
+    }
+  };
 
   return (
     <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 bg-gradient-to-br from-background via-background to-muted/20 overflow-y-auto">
-      <div className="max-w-[1600px] mx-auto space-y-4 sm:space-y-6 animate-in fade-in duration-700">
+      <div className="max-w-[1600px] mx-auto space-y-4 md:space-y-6 animate-in fade-in duration-700">
         
-        {/* Hero Stats - Responsive Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {/* Total Reviews Card */}
-          <Card className="border-none shadow-lg bg-gradient-to-br from-blue-500/10 via-background to-background relative overflow-hidden">
-            <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-4">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
-                <CardDescription className="text-[10px] sm:text-xs font-medium">Total Reviews</CardDescription>
-              </div>
-              <CardTitle className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">{totalReviews.toLocaleString()}</CardTitle>
+        {/* Hero Stats - Fully Responsive Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+          <Card className="relative overflow-hidden border-none shadow-lg bg-gradient-to-br from-blue-500/10 via-background to-background">
+            <CardHeader className="pb-2 md:pb-3 p-3 sm:p-4">
+              <CardDescription className="text-[10px] sm:text-xs font-medium">Total Reviews</CardDescription>
+              <CardTitle className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">
+                {totalReviews.toLocaleString()}
+              </CardTitle>
             </CardHeader>
+            <MessageSquare className="absolute right-2 bottom-2 sm:right-4 sm:bottom-4 h-10 w-10 sm:h-12 sm:w-12 md:h-16 md:w-16 text-blue-500/20" />
           </Card>
 
-          {/* Average Rating Card */}
-          <Card className="border-none shadow-lg bg-gradient-to-br from-yellow-500/10 via-background to-background relative overflow-hidden">
-            <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-4">
-              <div className="flex items-center gap-2">
-                <Star className="h-4 w-4 sm:h-5 sm:w-5 fill-yellow-500 text-yellow-500" />
-                <CardDescription className="text-[10px] sm:text-xs font-medium">Average Rating</CardDescription>
-              </div>
+          <Card className="relative overflow-hidden border-none shadow-lg bg-gradient-to-br from-yellow-500/10 via-background to-background">
+            <CardHeader className="pb-2 md:pb-3 p-3 sm:p-4">
+              <CardDescription className="text-[10px] sm:text-xs font-medium">Average Rating</CardDescription>
               <div className="flex items-baseline gap-1 sm:gap-2">
-                <CardTitle className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">{avgRating.toFixed(1)}</CardTitle>
-                <Star className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 lg:h-6 lg:w-6 fill-yellow-500 text-yellow-500" />
+                <CardTitle className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">
+                  {avgRating.toFixed(1)}
+                </CardTitle>
+                <Star className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6 fill-yellow-500 text-yellow-500" />
               </div>
             </CardHeader>
+            <Star className="absolute right-2 bottom-2 sm:right-4 sm:bottom-4 h-10 w-10 sm:h-12 sm:w-12 md:h-16 md:w-16 text-yellow-500/20" />
           </Card>
 
-          {/* Positive Sentiment Card */}
-          <Card className="border-none shadow-lg bg-gradient-to-br from-green-500/10 via-background to-background relative overflow-hidden">
-            <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-4">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
-                <CardDescription className="text-[10px] sm:text-xs font-medium">Positive Sentiment</CardDescription>
-              </div>
-              <CardTitle className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">{sentimentScore.toFixed(0)}%</CardTitle>
+          <Card className="relative overflow-hidden border-none shadow-lg bg-gradient-to-br from-green-500/10 via-background to-background">
+            <CardHeader className="pb-2 md:pb-3 p-3 sm:p-4">
+              <CardDescription className="text-[10px] sm:text-xs font-medium">Positive Sentiment</CardDescription>
+              <CardTitle className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">
+                {sentimentScore.toFixed(0)}%
+              </CardTitle>
             </CardHeader>
+            <TrendingUp className="absolute right-2 bottom-2 sm:right-4 sm:bottom-4 h-10 w-10 sm:h-12 sm:w-12 md:h-16 md:w-16 text-green-500/20" />
           </Card>
 
-          {/* Key Themes Card */}
-          <Card className="border-none shadow-lg bg-gradient-to-br from-purple-500/10 via-background to-background relative overflow-hidden">
-            <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-4">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
-                <CardDescription className="text-[10px] sm:text-xs font-medium">Key Themes</CardDescription>
-              </div>
-              <CardTitle className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">{themeData.length}</CardTitle>
+          <Card className="relative overflow-hidden border-none shadow-lg bg-gradient-to-br from-purple-500/10 via-background to-background">
+            <CardHeader className="pb-2 md:pb-3 p-3 sm:p-4">
+              <CardDescription className="text-[10px] sm:text-xs font-medium">Key Themes</CardDescription>
+              <CardTitle className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">
+                {themeData.length}
+              </CardTitle>
             </CardHeader>
+            <Activity className="absolute right-2 bottom-2 sm:right-4 sm:bottom-4 h-10 w-10 sm:h-12 sm:w-12 md:h-16 md:w-16 text-purple-500/20" />
           </Card>
         </div>
 
-        {/* Main Charts */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
-            <TabsTrigger value="overview" className="text-[10px] sm:text-xs md:text-sm px-2 sm:px-3">
-              <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              <span className="hidden xs:inline">Overview</span>
+        {/* Main Charts - Responsive Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
+          <TabsList className="grid w-full grid-cols-4 h-auto">
+            <TabsTrigger value="overview" className="text-[10px] sm:text-xs md:text-sm px-2 py-2 md:py-2.5">
+              <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
+              <span className="hidden sm:inline">Overview</span>
             </TabsTrigger>
-            <TabsTrigger value="sentiment" className="text-[10px] sm:text-xs md:text-sm px-2 sm:px-3">
-              <PieChartIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              <span className="hidden xs:inline">Sentiment</span>
+            <TabsTrigger value="sentiment" className="text-[10px] sm:text-xs md:text-sm px-2 py-2 md:py-2.5">
+              <PieChartIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
+              <span className="hidden sm:inline">Sentiment</span>
             </TabsTrigger>
-            <TabsTrigger value="growth" className="text-[10px] sm:text-xs md:text-sm px-2 sm:px-3">
-              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              <span className="hidden xs:inline">Growth</span>
+            <TabsTrigger value="growth" className="text-[10px] sm:text-xs md:text-sm px-2 py-2 md:py-2.5">
+              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
+              <span className="hidden sm:inline">Growth</span>
             </TabsTrigger>
-            <TabsTrigger value="insights" className="text-[10px] sm:text-xs md:text-sm px-2 sm:px-3">
-              <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              <span className="hidden xs:inline">Insights</span>
+            <TabsTrigger value="insights" className="text-[10px] sm:text-xs md:text-sm px-2 py-2 md:py-2.5">
+              <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
+              <span className="hidden sm:inline">Insights</span>
             </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <TabsContent value="overview" className="space-y-4 md:space-y-6 mt-4 md:mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
               
-              {/* Rating Distribution */}
+              {/* Rating Distribution - Responsive */}
               {ratingData.length > 0 && (
                 <Card className="border-none shadow-lg">
                   <CardHeader className="p-3 sm:p-4 md:p-6">
                     <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
-                      <Star className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-yellow-500" />
-                      Rating Distribution
+                      <Star className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500 flex-shrink-0" />
+                      <span>Rating Distribution</span>
                     </CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">Customer rating breakdown with review counts</CardDescription>
+                    <CardDescription className="text-xs sm:text-sm">
+                      Customer rating breakdown with review counts
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0 md:p-6 md:pt-0">
-                    <ResponsiveContainer width="100%" height={chartHeight} className="text-xs">
-                      <BarChart data={ratingData} layout="vertical">
+                  <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
+                    <ResponsiveContainer width="100%" height={getChartHeight()}>
+                      <BarChart data={ratingData} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-muted/20" />
-                        <XAxis 
-                          type="number" 
-                          tick={{ fontSize: window.innerWidth < 640 ? 9 : 10 }} 
-                        />
+                        <XAxis type="number" tick={{ fontSize: isMobile ? 10 : 12 }} />
                         <YAxis 
                           dataKey="rating" 
                           type="category" 
-                          width={window.innerWidth < 640 ? 35 : 45} 
-                          tick={{ fontSize: window.innerWidth < 640 ? 9 : 10 }} 
+                          width={isMobile ? 40 : 50} 
+                          tick={{ fontSize: isMobile ? 10 : 12 }} 
                         />
-                        <Tooltip 
-                          content={<RatingTooltip />}
-                          cursor={false}
-                        />
+                        <Tooltip content={<RatingTooltip />} cursor={false} />
                         <Bar 
                           dataKey="count" 
                           radius={[0, 8, 8, 0]}
                           shape={<AnimatedVerticalBar />}
                         >
                           {ratingData.map((entry, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={entry.fill}
-                            />
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -391,47 +421,96 @@ export default function GraphArea({ analysis, isLoading, onViewDetails }: GraphA
                 </Card>
               )}
 
-              {/* Top Keywords */}
+              {/* Top Keywords - Interactive with Frequency Display */}
               {keywordData.length > 0 && (
                 <Card className="border-none shadow-lg">
                   <CardHeader className="p-3 sm:p-4 md:p-6">
-                    <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
-                      <Activity className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-primary" />
-                      Top Keywords
-                    </CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">Most mentioned words</CardDescription>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
+                          <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+                          <span>Top Keywords</span>
+                        </CardTitle>
+                        <CardDescription className="text-xs sm:text-sm mt-1">
+                          Click on a bar to view frequency details
+                        </CardDescription>
+                      </div>
+                      {selectedKeyword && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedKeyword(null)}
+                          className="h-6 w-6 p-0 sm:h-8 sm:w-8 flex-shrink-0"
+                        >
+                          <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </CardHeader>
-                  <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0 md:p-6 md:pt-0">
-                    <ResponsiveContainer width="100%" height={chartHeight} className="text-xs">
-                      <BarChart data={keywordData}>
+                  <CardContent className="p-3 sm:p-4 md:p-6 pt-0 space-y-3 md:space-y-4">
+                    {/* Selected Keyword Display */}
+                    {selectedKeyword && (
+                      <div className="bg-primary/10 border-2 border-primary rounded-lg p-3 md:p-4 animate-in slide-in-from-top duration-300">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs sm:text-sm text-muted-foreground mb-1">
+                              Selected Keyword:
+                            </p>
+                            <p className="text-base sm:text-lg md:text-xl font-bold text-primary truncate">
+                              {selectedKeyword.keyword}
+                            </p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-xs sm:text-sm text-muted-foreground mb-1">
+                              Frequency:
+                            </p>
+                            <Badge variant="default" className="text-sm sm:text-base md:text-lg px-2 py-1">
+                              {selectedKeyword.frequency}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-primary/20">
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">
+                            This keyword appears <span className="font-semibold text-primary">{selectedKeyword.frequency} times</span> across all analyzed reviews
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Keywords Chart */}
+                    <ResponsiveContainer width="100%" height={getChartHeight()}>
+                      <BarChart 
+                        data={keywordData} 
+                        margin={{ top: 5, right: 10, left: 10, bottom: isMobile ? 60 : 80 }}
+                        onClick={(data) => {
+                          if (data && data.activePayload && data.activePayload[0]) {
+                            handleKeywordClick(data.activePayload[0].payload);
+                          }
+                        }}
+                      >
                         <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-muted/20" />
                         <XAxis 
                           dataKey="keyword" 
-                          angle={window.innerWidth < 640 ? -90 : -45} 
+                          angle={-45} 
                           textAnchor="end" 
-                          height={window.innerWidth < 640 ? 100 : 70}
-                          tick={{ fontSize: window.innerWidth < 640 ? 8 : 9 }}
+                          height={isMobile ? 60 : 80}
+                          tick={{ fontSize: isMobile ? 9 : 10 }}
                           interval={0}
                         />
-                        <YAxis 
-                          tick={{ fontSize: window.innerWidth < 640 ? 9 : 10 }} 
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'hsl(var(--background))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                            fontSize: window.innerWidth < 640 ? '10px' : '11px'
-                          }}
-                          cursor={false}
-                        />
+                        <YAxis tick={{ fontSize: isMobile ? 10 : 12 }} />
+                        <Tooltip content={<KeywordTooltip />} cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }} />
                         <Bar 
                           dataKey="frequency" 
                           radius={[8, 8, 0, 0]}
                           shape={<AnimatedBar />}
+                          onClick={handleKeywordClick}
                         >
                           {keywordData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS.primary} />
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={selectedKeyword?.keyword === entry.keyword ? COLORS.accent : COLORS.primary}
+                              className="cursor-pointer"
+                            />
                           ))}
                         </Bar>
                       </BarChart>
@@ -441,44 +520,41 @@ export default function GraphArea({ analysis, isLoading, onViewDetails }: GraphA
               )}
             </div>
 
-            {/* Themes */}
+            {/* Themes - Responsive Horizontal Bar Chart */}
             {themeData.length > 0 && (
               <Card className="border-none shadow-lg">
                 <CardHeader className="p-3 sm:p-4 md:p-6">
                   <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
-                    <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-secondary" />
-                    Common Themes
+                    <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-secondary flex-shrink-0" />
+                    <span>Common Themes</span>
                   </CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">Key topics discussed in reviews with mention frequency</CardDescription>
+                  <CardDescription className="text-xs sm:text-sm">
+                    Key topics discussed in reviews with mention frequency
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0 md:p-6 md:pt-0">
-                  <ResponsiveContainer width="100%" height={chartHeight} className="text-xs">
-                    <BarChart data={themeData} layout="vertical">
+                <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
+                  <ResponsiveContainer width="100%" height={getChartHeight()}>
+                    <BarChart 
+                      data={themeData} 
+                      layout="vertical"
+                      margin={{ top: 5, right: 10, left: isMobile ? 80 : 120, bottom: 5 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-muted/20" />
-                      <XAxis 
-                        type="number" 
-                        tick={{ fontSize: window.innerWidth < 640 ? 9 : 10 }} 
-                      />
+                      <XAxis type="number" tick={{ fontSize: isMobile ? 10 : 12 }} />
                       <YAxis 
                         dataKey="theme" 
                         type="category" 
-                        width={window.innerWidth < 640 ? 80 : 100} 
-                        tick={{ fontSize: window.innerWidth < 640 ? 9 : 10 }} 
+                        width={isMobile ? 80 : 120} 
+                        tick={{ fontSize: isMobile ? 9 : 12 }} 
                       />
-                      <Tooltip 
-                        content={<ThemeTooltip />}
-                        cursor={false}
-                      />
+                      <Tooltip content={<ThemeTooltip />} cursor={false} />
                       <Bar 
                         dataKey="mentions" 
                         radius={[0, 8, 8, 0]}
                         shape={<AnimatedVerticalBar />}
                       >
                         {themeData.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={entry.fill}
-                          />
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -488,29 +564,35 @@ export default function GraphArea({ analysis, isLoading, onViewDetails }: GraphA
             )}
           </TabsContent>
 
-          {/* Sentiment Tab */}
-          <TabsContent value="sentiment" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          {/* Sentiment Tab - Responsive */}
+          <TabsContent value="sentiment" className="space-y-4 md:space-y-6 mt-4 md:mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
               
               {/* Sentiment Pie Chart */}
               <Card className="border-none shadow-lg">
                 <CardHeader className="p-3 sm:p-4 md:p-6">
                   <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
-                    <PieChartIcon className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-accent" />
-                    Sentiment Distribution
+                    <PieChartIcon className="h-4 w-4 sm:h-5 sm:w-5 text-accent flex-shrink-0" />
+                    <span>Sentiment Distribution</span>
                   </CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">Overall customer sentiment</CardDescription>
+                  <CardDescription className="text-xs sm:text-sm">
+                    Overall customer sentiment
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0 md:p-6 md:pt-0">
-                  <ResponsiveContainer width="100%" height={largeChartHeight} className="text-xs">
+                <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
+                  <ResponsiveContainer width="100%" height={getPieChartHeight()}>
                     <PieChart>
                       <Pie
                         data={sentimentData}
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={window.innerWidth < 640 ? 70 : window.innerWidth < 1024 ? 80 : 100}
+                        label={({ name, percent }) => 
+                          isMobile 
+                            ? `${(percent * 100).toFixed(0)}%` 
+                            : `${name}: ${(percent * 100).toFixed(0)}%`
+                        }
+                        outerRadius={isMobile ? 80 : 100}
                         fill="#8884d8"
                         dataKey="value"
                       >
@@ -520,67 +602,51 @@ export default function GraphArea({ analysis, isLoading, onViewDetails }: GraphA
                       </Pie>
                       <Tooltip />
                       <Legend 
-                        wrapperStyle={{
-                          fontSize: window.innerWidth < 640 ? '10px' : '12px',
-                          paddingTop: '10px'
-                        }}
+                        wrapperStyle={{ fontSize: isMobile ? '12px' : '14px' }}
+                        iconSize={isMobile ? 10 : 14}
                       />
                     </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
 
-              {/* Emotion Radar */}
+              {/* Emotion Radar - Responsive */}
               {emotionData.length > 0 && (
                 <Card className="border-none shadow-lg">
                   <CardHeader className="p-3 sm:p-4 md:p-6">
                     <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
-                      <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-purple-500" />
-                      Emotion Analysis
+                      <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500 flex-shrink-0" />
+                      <span>Emotion Analysis</span>
                     </CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">Emotional tone detected in reviews</CardDescription>
+                    <CardDescription className="text-xs sm:text-sm">
+                      Emotional tone detected in reviews
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0 md:p-6 md:pt-0">
-                    <ResponsiveContainer width="100%" height={largeChartHeight} className="text-xs">
-                      <RadarChart cx="50%" cy="50%" outerRadius={window.innerWidth < 640 ? "65%" : "80%"} data={emotionData}>
-                        <PolarGrid 
-                          stroke="hsl(var(--muted-foreground))" 
-                          className="opacity-40"
-                        />
+                  <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
+                    <ResponsiveContainer width="100%" height={getPieChartHeight()}>
+                      <RadarChart cx="50%" cy="50%" outerRadius={isMobile ? "70%" : "80%"} data={emotionData}>
+                        <PolarGrid stroke="hsl(var(--muted-foreground))" className="opacity-40" />
                         <PolarAngleAxis 
                           dataKey="emotion" 
                           tick={{ 
-                            fontSize: window.innerWidth < 640 ? 10 : 12, 
+                            fontSize: isMobile ? 10 : 12, 
                             fill: 'hsl(var(--foreground))',
                             fontWeight: 500 
-                          }} 
+                          }}
                         />
                         <PolarRadiusAxis 
                           angle={90} 
                           domain={[0, 1]} 
-                          tick={{ 
-                            fontSize: window.innerWidth < 640 ? 8 : 10,
-                            fill: 'hsl(var(--muted-foreground))'
-                          }} 
+                          tick={{ fontSize: isMobile ? 9 : 10 }}
                         />
                         <Radar 
                           name="Emotion Intensity" 
                           dataKey="value" 
-                          stroke="hsl(var(--primary))" 
-                          fill="hsl(var(--primary))" 
-                          fillOpacity={0.7} 
-                          strokeWidth={window.innerWidth < 640 ? 2 : 3}
-                          className="drop-shadow-lg"
+                          stroke={COLORS.secondary} 
+                          fill={COLORS.secondary} 
+                          fillOpacity={0.6}
                         />
-                        <Tooltip 
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--background))',
-                            border: '2px solid hsl(var(--primary))',
-                            borderRadius: '8px',
-                            fontSize: window.innerWidth < 640 ? '10px' : '12px',
-                            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)'
-                          }}
-                        />
+                        <Tooltip />
                       </RadarChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -589,170 +655,76 @@ export default function GraphArea({ analysis, isLoading, onViewDetails }: GraphA
             </div>
           </TabsContent>
 
-          {/* Growth Tab - ECG-like Line Graph */}
-          <TabsContent value="growth" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              
-              {/* ECG-like Growth Chart */}
-              <Card className="border-none shadow-lg">
-                <CardHeader className="p-3 sm:p-4 md:p-6">
-                  <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
-                    <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-green-500" />
-                    Weekly Buyer Growth
-                  </CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">Buyer trends with ECG-style visualization</CardDescription>
-                </CardHeader>
-                <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0 md:p-6 md:pt-0">
-                  <ResponsiveContainer width="100%" height={chartHeight} className="text-xs">
-                    <LineChart data={ecgGrowthData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-muted/20" />
-                      <XAxis 
-                        dataKey="date" 
-                        tick={{ fontSize: window.innerWidth < 640 ? 9 : 10 }}
-                      />
-                      <YAxis 
-                        tick={{ fontSize: window.innerWidth < 640 ? 9 : 10 }} 
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--background))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                          fontSize: window.innerWidth < 640 ? '10px' : '12px'
-                        }}
-                        formatter={(value, name) => {
-                          if (name === 'buyers') return [value, 'ECG Buyers'];
-                          return [value, name];
-                        }}
-                        labelFormatter={(label) => `Day: ${label}`}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="buyers" 
-                        stroke="#10b981"
-                        strokeWidth={window.innerWidth < 640 ? 2 : 3}
-                        dot={{ fill: '#10b981', strokeWidth: 2, r: window.innerWidth < 640 ? 3 : 4 }}
-                        activeDot={{ r: window.innerWidth < 640 ? 4 : 6, fill: '#059669' }}
-                        isAnimationActive={true}
-                        animationDuration={500}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              {/* Growth Metrics */}
-              <Card className="border-none shadow-lg bg-gradient-to-br from-green-500/10 via-background to-background">
-                <CardHeader className="p-3 sm:p-4 md:p-6">
-                  <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
-                    <Users className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-green-500" />
-                    Growth Insights
-                  </CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">Weekly performance metrics</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-4 md:p-6">
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                    <div className="text-center p-3 sm:p-4 rounded-lg bg-background/50 border">
-                      <div className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-green-600">
-                        {totalBuyers.toLocaleString()}
-                      </div>
-                      <div className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                        Total Buyers
-                      </div>
-                    </div>
-                    <div className="text-center p-3 sm:p-4 rounded-lg bg-background/50 border">
-                      <div className={`text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold ${weeklyGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {weeklyGrowth >= 0 ? '+' : ''}{weeklyGrowth.toFixed(1)}%
-                      </div>
-                      <div className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                        Weekly Growth
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2 sm:space-y-3">
-                    <h4 className="font-semibold text-xs sm:text-sm">Daily Trends</h4>
-                    {growthData.map((day, index) => (
-                      <div key={day.date} className="flex items-center justify-between p-2 rounded-lg bg-background/30">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs sm:text-sm font-medium">{day.date}</span>
-                          {day.trend === 'up' ? (
-                            <TrendingUp className="h-2 w-2 sm:h-3 sm:w-3 text-green-500" />
-                          ) : (
-                            <TrendingDown className="h-2 w-2 sm:h-3 sm:w-3 text-red-500" />
-                          )}
-                        </div>
-                        <div className="text-xs sm:text-sm font-semibold">
-                          {day.buyers} buyers
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Growth Analysis */}
+          {/* Growth Tab - Responsive */}
+          <TabsContent value="growth" className="space-y-4 md:space-y-6 mt-4 md:mt-6">
             <Card className="border-none shadow-lg">
               <CardHeader className="p-3 sm:p-4 md:p-6">
                 <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
-                  <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-blue-500" />
-                  Growth Analysis
+                  <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
+                  <span>Review Growth Trend</span>
                 </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">Key insights from buyer trends</CardDescription>
+                <CardDescription className="text-xs sm:text-sm">
+                  Daily review activity (simulated data)
+                </CardDescription>
               </CardHeader>
-              <CardContent className="p-3 sm:p-4 md:p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                  <div className="space-y-2 sm:space-y-3">
-                    <h4 className="font-semibold text-xs sm:text-sm text-green-600">Positive Trends</h4>
-                    <ul className="space-y-1 sm:space-y-2 text-xs sm:text-sm text-muted-foreground">
-                      <li className="flex items-start gap-2">
-                        <div className="h-1.5 w-1.5 rounded-full bg-green-500 mt-1 flex-shrink-0"></div>
-                        <span>Strong weekend performance with 15% increase</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <div className="h-1.5 w-1.5 rounded-full bg-green-500 mt-1 flex-shrink-0"></div>
-                        <span>Consistent growth throughout the week</span>
-                      </li>
-                    </ul>
-                  </div>
-                  <div className="space-y-2 sm:space-y-3">
-                    <h4 className="font-semibold text-xs sm:text-sm text-red-600">Areas to Watch</h4>
-                    <ul className="space-y-1 sm:space-y-2 text-xs sm:text-sm text-muted-foreground">
-                      <li className="flex items-start gap-2">
-                        <div className="h-1.5 w-1.5 rounded-full bg-red-500 mt-1 flex-shrink-0"></div>
-                        <span>Mid-week dip observed on Wednesday</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <div className="h-1.5 w-1.5 rounded-full bg-red-500 mt-1 flex-shrink-0"></div>
-                        <span>Friday shows slight decline from Thursday peak</span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
+              <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
+                <ResponsiveContainer width="100%" height={isMobile ? 280 : 350}>
+                  <AreaChart data={growthData} margin={{ top: 10, right: 10, left: isMobile ? 0 : 10, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="colorBuyers" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-muted/20" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: isMobile ? 10 : 12 }}
+                      interval={isMobile ? 1 : 0}
+                    />
+                    <YAxis tick={{ fontSize: isMobile ? 10 : 12 }} />
+                    <Tooltip />
+                    <Area 
+                      type="monotone" 
+                      dataKey="buyers" 
+                      stroke={COLORS.primary} 
+                      fillOpacity={1} 
+                      fill="url(#colorBuyers)" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Insights Tab */}
-          <TabsContent value="insights" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
-            <Card className="border-none shadow-lg bg-gradient-to-br from-primary/5 via-background to-background">
+          {/* Insights Tab - Responsive */}
+          <TabsContent value="insights" className="space-y-4 md:space-y-6 mt-4 md:mt-6">
+            <Card className="border-none shadow-lg">
               <CardHeader className="p-3 sm:p-4 md:p-6">
-                <CardTitle className="text-base sm:text-lg md:text-xl flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6 text-primary" />
-                  AI-Generated Insights
+                <CardTitle className="text-sm sm:text-base md:text-lg flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+                  <span>AI-Generated Insights</span>
                 </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">Key takeaways from review analysis</CardDescription>
+                <CardDescription className="text-xs sm:text-sm">
+                  Key takeaways from review analysis
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-4 md:p-6">
+              <CardContent className="p-3 sm:p-4 md:p-6 pt-0 space-y-3 md:space-y-4">
                 {(analysis.insights?.insights || []).map((insight, index) => (
-                  <div key={index} className="flex gap-2 sm:gap-3 p-3 sm:p-4 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors">
+                  <div 
+                    key={index} 
+                    className="flex gap-2 md:gap-3 p-3 md:p-4 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+                  >
                     <div className="flex-shrink-0 mt-0.5">
-                      <div className="h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-primary/20 flex items-center justify-center">
-                        <span className="text-[10px] sm:text-xs font-bold text-primary">{index + 1}</span>
+                      <div className="h-5 w-5 md:h-6 md:w-6 rounded-full bg-primary/20 flex items-center justify-center">
+                        <span className="text-[10px] md:text-xs font-bold text-primary">
+                          {index + 1}
+                        </span>
                       </div>
                     </div>
-                    <p className="text-xs sm:text-sm md:text-base leading-relaxed">{insight}</p>
+                    <p className="text-xs sm:text-sm md:text-base leading-relaxed flex-1">
+                      {insight}
+                    </p>
                   </div>
                 ))}
               </CardContent>
@@ -760,32 +732,34 @@ export default function GraphArea({ analysis, isLoading, onViewDetails }: GraphA
           </TabsContent>
         </Tabs>
 
-        {/* View Detailed Report Button */}
+        {/* View Detailed Report Button - Responsive */}
         <Card className="border-2 border-primary/20 shadow-xl bg-gradient-to-r from-primary/5 via-background to-secondary/5">
           <CardContent className="p-4 sm:p-6 md:p-8">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
-              <div className="text-center md:text-left space-y-2">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3 md:gap-4">
+              <div className="text-center md:text-left space-y-2 flex-1">
                 <h3 className="text-base sm:text-lg md:text-xl font-bold flex items-center justify-center md:justify-start gap-2">
-                  <Eye className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                  Ready for Detailed Analysis?
+                  <Eye className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+                  <span>Ready for Detailed Analysis?</span>
                 </h3>
                 <p className="text-xs sm:text-sm md:text-base text-muted-foreground">
                   View comprehensive insights, AI summaries, and detailed reports
                 </p>
               </div>
-              <div className="flex gap-2 sm:gap-3">
-                <Button size="lg" className="gap-2 bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-xs sm:text-sm md:text-base" onClick={onViewDetails}>
-                  View Detailed Insights
-                  <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
-                </Button>
-              </div>
+              <Button 
+                size={isMobile ? "default" : "lg"} 
+                className="gap-2 bg-gradient-to-r from-primary to-secondary hover:opacity-90 w-full md:w-auto" 
+                onClick={onViewDetails}
+              >
+                <span className="text-sm sm:text-base">View Detailed Insights</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Footer with Copyright */}
-        <div className="text-center pt-4 sm:pt-6 md:pt-8 pb-4 border-t">
-          <p className="text-xs sm:text-sm text-muted-foreground">
+        {/* Footer - Responsive */}
+        <div className="text-center pt-6 pb-4 border-t">
+          <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground">
             Powered by <span className="font-semibold text-foreground">Technolity</span> • AI-Driven Analytics Platform
           </p>
           <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
