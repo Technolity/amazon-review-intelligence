@@ -10,7 +10,10 @@ import { cn } from '@/lib/utils';
 
 interface InsightsPanelProps {
   analysis: AnalysisResult | null;
+  isLoading?: boolean;
+  aiEnabled?: boolean;
 }
+
 
 export default function InsightsPanel({ analysis }: InsightsPanelProps) {
   if (!analysis) {
