@@ -233,7 +233,7 @@ export default function Dashboard() {
             analysis={analysis}
             isLoading={isLoading}
             aiEnabled={aiEnabled}
-            onShowDetails={handleShowDetails}
+            onViewDetails={handleShowDetails}
           />
         </div>
 
