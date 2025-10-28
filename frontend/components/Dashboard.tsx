@@ -111,7 +111,7 @@ export default function Dashboard() {
           csvContent += '\nReview Title,Rating,Sentiment,Text\n';
           analysis.reviews.forEach((review) => {
             const text = review.text?.replace(/"/g, '""') || '';
-            csvContent += `"${review.title || ''}",${review.stars || 0},${review.sentiment || 'N/A'},"${text}"\n`;
+            csvContent += `"${review.title || ''}",${review.rating || 0},${review.sentiment || 'N/A'},"${text}"\n`;
           });
         }
 
