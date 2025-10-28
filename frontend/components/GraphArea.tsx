@@ -21,6 +21,7 @@ interface GraphAreaProps {
   analysis: AnalysisResult | null;
   isLoading?: boolean;
   onViewDetails?: () => void;
+  aiEnabled?: boolean;  // <-- Add this line
 }
 
 interface GrowthData {
