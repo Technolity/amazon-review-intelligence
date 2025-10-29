@@ -23,11 +23,8 @@ export default function Dashboard() {
   const [aiEnabled, setAiEnabled] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   
-  // NEW: Mobile-only quick search state
+  // NEW: Mobile-only quick search state (simplified - only ASIN needed)
   const [mobileAsin, setMobileAsin] = useState('');
-  const [mobileEnableAI, setMobileEnableAI] = useState(true);
-  const [mobileMaxReviews, setMobileMaxReviews] = useState(50);
-  const [mobileCountry, setMobileCountry] = useState('US');
   
   const { toast } = useToast();
 
@@ -176,9 +173,6 @@ export default function Dashboard() {
     setShowDetailedView(false);
     // NEW: Reset mobile search form
     setMobileAsin('');
-    setMobileEnableAI(true);
-    setMobileMaxReviews(50);
-    setMobileCountry('US');
     
     toast({
       title: 'Reset Complete',
@@ -289,21 +283,22 @@ export default function Dashboard() {
           {/* Graph/Chart Area - Full Width on Mobile */}
           <div className="flex-1 overflow-auto bg-muted/30">
             
-            {/* NEW: Compact Mobile Quick Search - Only visible when no analysis or when loading */}
-            {(!analysis || isLoading) && (
-              <div className="sm:hidden p-3 bg-background border-b">
+            {/* NEW: Minimal Mobile Quick Search - Only visible when no analysis and not loading */}
+            {!analysis && !isLoading && (
+              <div className="sm:hidden p-4 bg-background border-b">
                 <h2 className="text-sm font-semibold mb-3 text-foreground">Ready to analyze</h2>
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
                     const cleanAsin = mobileAsin.trim().toUpperCase();
                     if (cleanAsin.length === 10) {
-                      handleAnalyze(cleanAsin, mobileMaxReviews, mobileEnableAI, mobileCountry);
+                      // Use default values: 50 reviews, AI enabled, US region
+                      handleAnalyze(cleanAsin, 50, true, 'US');
                     }
                   }}
-                  className="space-y-2"
+                  className="space-y-3"
                 >
-                  {/* ASIN input */}
+                  {/* ASIN input only */}
                   <div>
                     <input
                       type="text"
@@ -320,53 +315,10 @@ export default function Dashboard() {
                     </p>
                   </div>
 
-                  {/* Compact Row: AI toggle + Max reviews + Country */}
-                  <div className="flex items-center gap-2 text-xs">
-                    <label className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-muted/50">
-                      <input
-                        type="checkbox"
-                        checked={mobileEnableAI}
-                        onChange={(e) => setMobileEnableAI(e.target.checked)}
-                        className="h-3 w-3"
-                        disabled={isLoading}
-                      />
-                      <span className="font-medium">AI</span>
-                    </label>
-
-                    <div className="flex items-center gap-1">
-                      <span className="text-muted-foreground">Max</span>
-                      <input
-                        type="number"
-                        min={10}
-                        max={100}
-                        step={10}
-                        value={mobileMaxReviews}
-                        onChange={(e) => setMobileMaxReviews(Number(e.target.value))}
-                        className="w-12 border rounded px-1 h-6 text-xs bg-background"
-                        disabled={isLoading}
-                      />
-                    </div>
-
-                    <select
-                      value={mobileCountry}
-                      onChange={(e) => setMobileCountry(e.target.value)}
-                      className="flex-1 border rounded px-2 h-6 text-xs bg-background"
-                      disabled={isLoading}
-                    >
-                      <option value="US">🇺🇸 US</option>
-                      <option value="UK">🇬🇧 UK</option>
-                      <option value="DE">🇩🇪 DE</option>
-                      <option value="FR">🇫🇷 FR</option>
-                      <option value="JP">🇯🇵 JP</option>
-                      <option value="CA">🇨🇦 CA</option>
-                      <option value="IN">🇮🇳 IN</option>
-                    </select>
-                  </div>
-
                   {/* Analyze button */}
                   <button
                     type="submit"
-                    className="w-full h-9 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                     disabled={isLoading || mobileAsin.length !== 10}
                   >
                     {isLoading ? 'Analyzing…' : 'Analyze Reviews'}
