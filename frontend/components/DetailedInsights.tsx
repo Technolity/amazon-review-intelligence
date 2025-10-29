@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,10 +11,14 @@ import {
   ArrowLeft, Star, TrendingUp, TrendingDown, AlertCircle, 
   CheckCircle2, Sparkles, Download, Share2, Package, 
   MessageSquare, ThumbsUp, ThumbsDown, Minus, Calendar,
-  BarChart3, Eye
+  BarChart3, Eye, FileText, FileDown
 } from 'lucide-react';
 import type { AnalysisResult } from '@/types';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import axios from 'axios';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface DetailedInsightsProps {
   analysis: AnalysisResult;
@@ -22,6 +26,9 @@ interface DetailedInsightsProps {
 }
 
 export default function DetailedInsights({ analysis, onBack }: DetailedInsightsProps) {
+  const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
+
   const totalReviews = analysis.total_reviews || 0;
   const avgRating = analysis.average_rating || 0;
   const sentimentDist = analysis.sentiment_distribution || { positive: 0, neutral: 0, negative: 0 };
@@ -37,6 +44,130 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
   const summary = analysis.insights?.summary || '';
   const reviews = analysis.reviews || [];
 
+  // Share function
+  const handleShare = async () => {
+    try {
+      const title = analysis?.product_info?.title || `ASIN ${analysis?.asin || ''}`;
+      const text = `Amazon Review Intelligence: ${title} - Avg Rating ${avgRating.toFixed(1)}/5 based on ${totalReviews} reviews. AI Analysis shows ${positivePercent.toFixed(0)}% positive sentiment.`;
+      const url = typeof window !== 'undefined' ? window.location.href : '';
+
+      // Try Web Share API first (mobile)
+      if (navigator?.share) {
+        await navigator.share({ title, text, url });
+        toast({
+          title: '✅ Shared successfully',
+          description: 'Analysis shared via your device.',
+        });
+        return;
+      }
+
+      // Fallback: Copy to clipboard
+      await navigator.clipboard.writeText(`${title}\n\n${text}\n\n${url}`);
+      toast({
+        title: '📋 Copied to clipboard',
+        description: 'Analysis summary copied. Paste it anywhere to share.',
+        duration: 3000,
+      });
+    } catch (err: any) {
+      console.error('Share error:', err);
+      toast({
+        title: 'Share failed',
+        description: err?.message || 'Could not share the analysis',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Download CSV function
+  const handleDownloadCSV = async () => {
+    setIsExporting(true);
+    try {
+      toast({
+        title: '📤 Generating CSV...',
+        description: 'Please wait while we prepare your export.',
+      });
+
+      const response = await axios.post(
+        `${API_URL}/api/v1/export/csv`,
+        { analysis_data: analysis },
+        { 
+          responseType: 'blob',
+          timeout: 30000,
+        }
+      );
+
+      // Create download
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reviews_${analysis.asin}_${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: '✅ CSV Downloaded',
+        description: 'Your review data has been exported successfully.',
+      });
+    } catch (err: any) {
+      console.error('CSV download error:', err);
+      toast({
+        title: 'CSV export failed',
+        description: err?.response?.data?.detail || err?.message || 'Could not generate CSV',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Download PDF function
+  const handleDownloadPDF = async () => {
+    setIsExporting(true);
+    try {
+      toast({
+        title: '📄 Generating PDF...',
+        description: 'Creating your detailed report...',
+      });
+
+      const response = await axios.post(
+        `${API_URL}/api/v1/export/pdf`,
+        { analysis_data: analysis },
+        { 
+          responseType: 'blob',
+          timeout: 30000,
+        }
+      );
+
+      // Create download
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `report_${analysis.asin}_${Date.now()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: '✅ PDF Downloaded',
+        description: 'Your detailed report has been saved.',
+      });
+    } catch (err: any) {
+      console.error('PDF download error:', err);
+      toast({
+        title: 'PDF export failed',
+        description: err?.response?.data?.detail || err?.message || 'Could not generate PDF',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       {/* Header */}
@@ -48,13 +179,33 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
               <span className="hidden sm:inline">Back to Overview</span>
             </Button>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2" 
+                onClick={handleShare}
+                disabled={isExporting}
+              >
                 <Share2 className="h-4 w-4" />
                 <span className="hidden sm:inline">Share</span>
               </Button>
-              <Button size="sm" className="gap-2">
-                <Download className="h-4 w-4" />
-                <span className="hidden sm:inline">Export Report</span>
+              <Button 
+                size="sm" 
+                className="gap-2" 
+                onClick={handleDownloadCSV}
+                disabled={isExporting}
+              >
+                <FileText className={cn("h-4 w-4", isExporting && "animate-spin")} />
+                <span className="hidden sm:inline">CSV</span>
+              </Button>
+              <Button 
+                size="sm" 
+                className="gap-2" 
+                onClick={handleDownloadPDF}
+                disabled={isExporting}
+              >
+                <FileDown className={cn("h-4 w-4", isExporting && "animate-spin")} />
+                <span className="hidden sm:inline">PDF</span>
               </Button>
             </div>
           </div>
@@ -73,6 +224,16 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
                   <div className="flex items-center gap-2">
                     <Package className="h-5 w-5 text-primary" />
                     <Badge variant="outline">ASIN: {analysis.asin}</Badge>
+                    {analysis.country && (
+                      <Badge variant="secondary">
+                        {analysis.country === 'IN' ? '🇮🇳 India' : 
+                         analysis.country === 'US' ? '🇺🇸 US' : 
+                         analysis.country === 'UK' ? '🇬🇧 UK' : 
+                         analysis.country === 'DE' ? '🇩🇪 Germany' : 
+                         analysis.country === 'CA' ? '🇨🇦 Canada' : 
+                         analysis.country}
+                      </Badge>
+                    )}
                   </div>
                   <CardTitle className="text-2xl md:text-3xl">
                     {analysis.product_info?.title || 'Product Analysis Report'}
@@ -105,7 +266,9 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-base md:text-lg leading-relaxed">{summary}</p>
+              <p className="text-base md:text-lg leading-relaxed">
+                {summary || `This product has an average rating of ${avgRating.toFixed(1)} stars based on ${totalReviews} reviews. The sentiment analysis shows ${positivePercent.toFixed(0)}% positive, ${neutralPercent.toFixed(0)}% neutral, and ${negativePercent.toFixed(0)}% negative reviews.`}
+              </p>
             </CardContent>
           </Card>
 
@@ -189,7 +352,7 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {insights.map((insight, index) => (
+                {insights.length > 0 ? insights.map((insight, index) => (
                   <div 
                     key={index} 
                     className="flex gap-3 p-4 rounded-lg border bg-gradient-to-br from-muted/30 to-muted/10 hover:shadow-md transition-all"
@@ -201,7 +364,11 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
                     </div>
                     <p className="text-sm leading-relaxed">{insight}</p>
                   </div>
-                ))}
+                )) : (
+                  <div className="col-span-2 text-center text-muted-foreground">
+                    <p>Key insights will appear here when AI analysis is available.</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -322,7 +489,7 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
                 {/* Positive Reviews */}
                 <TabsContent value="positive" className="space-y-4">
                   {reviews
-                    .filter(r => r.ai_sentiment === 'positive')
+                    .filter(r => r.ai_sentiment === 'positive' || r.sentiment === 'positive' || r.rating >= 4)
                     .slice(0, 3)
                     .map((review, index) => (
                       <div key={index} className="p-4 rounded-lg border bg-green-500/5">
@@ -349,7 +516,7 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
                         </div>
                         <h4 className="font-semibold text-sm mb-2">{review.title}</h4>
                         <p className="text-sm text-muted-foreground leading-relaxed">
-                          {review.text}
+                          {review.text || review.content}
                         </p>
                         <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
@@ -367,7 +534,7 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
                 {/* Neutral Reviews */}
                 <TabsContent value="neutral" className="space-y-4">
                   {reviews
-                    .filter(r => r.ai_sentiment === 'neutral')
+                    .filter(r => r.ai_sentiment === 'neutral' || r.sentiment === 'neutral' || r.rating === 3)
                     .slice(0, 3)
                     .map((review, index) => (
                       <div key={index} className="p-4 rounded-lg border bg-yellow-500/5">
@@ -394,7 +561,7 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
                         </div>
                         <h4 className="font-semibold text-sm mb-2">{review.title}</h4>
                         <p className="text-sm text-muted-foreground leading-relaxed">
-                          {review.text}
+                          {review.text || review.content}
                         </p>
                         <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
@@ -412,7 +579,7 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
                 {/* Negative Reviews */}
                 <TabsContent value="negative" className="space-y-4">
                   {reviews
-                    .filter(r => r.ai_sentiment === 'negative')
+                    .filter(r => r.ai_sentiment === 'negative' || r.sentiment === 'negative' || r.rating <= 2)
                     .slice(0, 3)
                     .map((review, index) => (
                       <div key={index} className="p-4 rounded-lg border bg-red-500/5">
@@ -439,7 +606,7 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
                         </div>
                         <h4 className="font-semibold text-sm mb-2">{review.title}</h4>
                         <p className="text-sm text-muted-foreground leading-relaxed">
-                          {review.text}
+                          {review.text || review.content}
                         </p>
                         <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
