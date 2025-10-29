@@ -91,7 +91,7 @@ export async function analyzeReviews(params: {
   try {
     const requestData = {
       asin: params.asin, // Changed from 'input' to 'asin'
-      country: params.country || 'US',
+      country: params.country || 'US', // FIX: Ensure country is always sent
       fetch_new: params.fetch_new ?? true,
       max_reviews: params.max_reviews || 5,
     };
@@ -117,11 +117,10 @@ export async function fetchReviews(params: {
   max_reviews?: number;
 }): Promise<{ success: boolean; reviews: Review[]; asin: string; total_reviews: number }> {
   try {
-    const response = await apiClient.post('/api/reviews/fetch', {
+    const response = await apiClient.post('/api/v1/reviews/fetch', { // FIX: Updated endpoint to match backend
       asin: params.asin,
-      country: params.country || 'US',
+      country: params.country || 'US', // FIX: Ensure country is always sent
       max_reviews: params.max_reviews || 5,
-      multi_country: true,
     });
     return response.data;
   } catch (error) {
@@ -226,6 +225,25 @@ export function extractAsinFromUrl(url: string): string | null {
   }
 }
 
+// FIX: Added helper function to detect country from Amazon URL
+export function extractCountryFromUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    
+    if (hostname.includes('amazon.in')) return 'IN';
+    if (hostname.includes('amazon.co.uk')) return 'UK';
+    if (hostname.includes('amazon.de')) return 'DE';
+    if (hostname.includes('amazon.fr')) return 'FR';
+    if (hostname.includes('amazon.co.jp')) return 'JP';
+    if (hostname.includes('amazon.ca')) return 'CA';
+    
+    return 'US'; // Default to US
+  } catch (error) {
+    return 'US';
+  }
+}
+
 /**
  * Format error message for display
  */
@@ -279,7 +297,7 @@ export async function analyzeBatch(
   for (const asin of asins) {
     try {
       console.log(`📊 Analyzing ${asin}...`);
-      const result = await analyzeReviews({ asin, country });
+      const result = await analyzeReviews({ asin, country }); // FIX: Pass country parameter
       results.push(result);
     } catch (error) {
       console.error(`Failed to analyze ${asin}:`, error);
