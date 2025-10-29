@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './Navbar';
 import SidebarFilters from './SidebarFilters';
 import GraphArea from './GraphArea';
@@ -17,13 +17,30 @@ export default function Dashboard() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [currentAsin, setCurrentAsin] = useState('');
+  const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showDetailedView, setShowDetailedView] = useState(false);
-  const [aiEnabled, setAiEnabled] = useState(true); // Track AI state globally
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
 
+  // Detect mobile/tablet breakpoints
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+      // Auto-collapse sidebar on tablets in portrait mode
+      if (window.innerWidth < 1024 && window.innerWidth >= 768) {
+        setSidebarCollapsed(true);
+      }
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   /**
-   * Main analysis handler - now includes enableAI parameter
+   * Main analysis handler - includes mobile sidebar auto-hide
    */
   const handleAnalyze = async (
     asin: string, 
@@ -35,6 +52,11 @@ export default function Dashboard() {
     setCurrentAsin(asin);
     setShowDetailedView(false);
     setAiEnabled(enableAI);
+    
+    // AUTO-HIDE sidebar on mobile after search
+    if (isMobile) {
+      setSidebarMobileOpen(false);
+    }
 
     try {
       toast({
@@ -47,7 +69,7 @@ export default function Dashboard() {
         {
           asin: asin,
           max_reviews: maxReviews,
-          enable_ai: enableAI, // ✅ Pass AI toggle to backend
+          enable_ai: enableAI,
           country: country,
         },
         {
@@ -60,9 +82,14 @@ export default function Dashboard() {
         setAnalysis(response.data);
         toast({
           title: enableAI ? '✅ AI Analysis Complete!' : '✅ Reviews Fetched!',
-          description: `Successfully processed ${response.data.total_reviews} reviews`,
-          duration: 3000,
+          description: `Found ${response.data.total_reviews} reviews`,
+          duration: 4000,
         });
+        
+        // Scroll to top on mobile to show results
+        if (isMobile) {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
       } else {
         throw new Error(response.data.error || 'Analysis failed');
       }
@@ -70,7 +97,7 @@ export default function Dashboard() {
       console.error('Analysis error:', error);
       toast({
         title: '❌ Analysis Failed',
-        description: error.response?.data?.detail || error.message || 'An error occurred',
+        description: error.message || 'Could not analyze the product',
         variant: 'destructive',
         duration: 5000,
       });
@@ -80,12 +107,12 @@ export default function Dashboard() {
   };
 
   /**
-   * Export handler for CSV and PDF
+   * Export handler
    */
   const handleExport = async (format: 'csv' | 'pdf') => {
-    if (!analysis) {
+    if (!currentAsin || !analysis) {
       toast({
-        title: 'No Data',
+        title: 'No Data to Export',
         description: 'Please analyze a product first',
         variant: 'destructive',
       });
@@ -93,45 +120,33 @@ export default function Dashboard() {
     }
 
     try {
-      toast({
-        title: 'Generating Export...',
-        description: `Creating ${format.toUpperCase()} file`,
-      });
+      const response = await axios.post(
+        `${API_URL}/api/v1/export`,
+        {
+          asin: currentAsin,
+          format: format,
+        },
+        {
+          responseType: format === 'pdf' ? 'blob' : 'text',
+        }
+      );
 
       if (format === 'csv') {
-        // Generate CSV content
-        let csvContent = 'ASIN,Total Reviews,Average Rating,Positive,Neutral,Negative\n';
-        csvContent += `${currentAsin},${analysis.total_reviews},${analysis.average_rating},`;
-        csvContent += `${analysis.sentiment_distribution?.positive || 0},`;
-        csvContent += `${analysis.sentiment_distribution?.neutral || 0},`;
-        csvContent += `${analysis.sentiment_distribution?.negative || 0}\n\n`;
-
-        // Add review details if available
-        if (analysis.reviews && analysis.reviews.length > 0) {
-          csvContent += '\nReview Title,Rating,Sentiment,Text\n';
-          analysis.reviews.forEach((review) => {
-            const text = review.text?.replace(/"/g, '""') || '';
-            csvContent += `"${review.title || ''}",${review.rating || 0},${review.ai_sentiment || 'N/A'},"${text}"\n`;
-          });
-        }
-
-        // Download CSV
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `amazon_review_analysis_${currentAsin}_${Date.now()}.csv`;
-        link.click();
-
+        const blob = new Blob([response.data], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `reviews_${currentAsin}_${Date.now()}.csv`;
+        a.click();
+        
         toast({
-          title: '✅ CSV Downloaded',
-          description: 'Your analysis report has been downloaded',
+          title: '✅ Export Successful',
+          description: 'CSV file has been downloaded',
         });
-      } else if (format === 'pdf') {
-        // For PDF, we would typically call a backend endpoint
-        // For now, show a placeholder
+      } else {
         toast({
-          title: '🚧 PDF Export',
-          description: 'PDF export is coming soon! Use CSV for now.',
+          title: 'PDF Export',
+          description: 'PDF export coming soon. Use CSV for now.',
           duration: 4000,
         });
       }
@@ -159,10 +174,14 @@ export default function Dashboard() {
   };
 
   /**
-   * Toggle sidebar collapse
+   * Toggle sidebar - different behavior for mobile vs desktop
    */
   const handleToggleSidebar = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
+    if (isMobile) {
+      setSidebarMobileOpen(!sidebarMobileOpen);
+    } else {
+      setSidebarCollapsed(!sidebarCollapsed);
+    }
   };
 
   /**
@@ -171,6 +190,9 @@ export default function Dashboard() {
   const handleShowDetails = () => {
     if (analysis) {
       setShowDetailedView(true);
+      if (isMobile) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     }
   };
 
@@ -189,6 +211,7 @@ export default function Dashboard() {
           onExport={handleExport}
           onToggleSidebar={handleToggleSidebar}
           sidebarCollapsed={sidebarCollapsed}
+          isMobile={isMobile}
         />
         <DetailedInsights 
           analysis={analysis} 
@@ -198,7 +221,7 @@ export default function Dashboard() {
     );
   }
 
-  // Main Dashboard Layout
+  // Main Dashboard Layout - RESPONSIVE
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}
@@ -206,44 +229,71 @@ export default function Dashboard() {
         onExport={handleExport}
         onToggleSidebar={handleToggleSidebar}
         sidebarCollapsed={sidebarCollapsed}
+        isMobile={isMobile}
       />
 
-      {/* Main Content Area */}
-      <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
+      {/* Main Content Area - Responsive Flex Layout */}
+      <div className="flex flex-col md:flex-row h-auto md:h-[calc(100vh-3.5rem)] overflow-hidden">
         
-        {/* Sidebar Filters - Collapsible */}
+        {/* Mobile Sidebar Overlay */}
+        {isMobile && sidebarMobileOpen && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setSidebarMobileOpen(false)}
+          />
+        )}
+        
+        {/* Sidebar Filters - Mobile Modal or Desktop Fixed */}
         <div 
           className={cn(
-            "transition-all duration-300 ease-in-out border-r bg-background",
-            sidebarCollapsed ? "w-16" : "w-80"
+            // Mobile: Full-screen modal
+            "md:relative md:h-full",
+            isMobile ? [
+              "fixed inset-y-0 left-0 z-50 w-80 bg-background shadow-xl",
+              "transform transition-transform duration-300 ease-in-out",
+              sidebarMobileOpen ? "translate-x-0" : "-translate-x-full"
+            ] : [
+              // Desktop: Collapsible sidebar
+              "transition-all duration-300 ease-in-out border-r bg-background",
+              sidebarCollapsed ? "w-16" : "w-80"
+            ]
           )}
         >
           <SidebarFilters
             onAnalyze={handleAnalyze}
             onReset={handleReset}
             isLoading={isLoading}
-            isCollapsed={sidebarCollapsed}
+            isCollapsed={!isMobile && sidebarCollapsed}
             onToggleCollapse={handleToggleSidebar}
+            mobileOpen={sidebarMobileOpen}
+            isMobile={isMobile}
           />
         </div>
 
-        {/* Graph/Chart Area - Main Content */}
-        <div className="flex-1 overflow-auto bg-muted/30">
-          <GraphArea 
-            analysis={analysis}
-            isLoading={isLoading}
-            aiEnabled={aiEnabled}
-            onViewDetails={handleShowDetails}
-          />
-        </div>
+        {/* Main Content Wrapper - Vertical on Mobile */}
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+          
+          {/* Graph/Chart Area - Full Width on Mobile */}
+          <div className="flex-1 overflow-auto bg-muted/30">
+            <GraphArea 
+              analysis={analysis}
+              isLoading={isLoading}
+              aiEnabled={aiEnabled}
+              onViewDetails={handleShowDetails}
+            />
+          </div>
 
-        {/* Insights Panel - Right Side */}
-        <div className="w-96 border-l bg-background overflow-auto">
-          <InsightsPanel 
-            analysis={analysis}
-            isLoading={isLoading}
-            aiEnabled={aiEnabled}
-          />
+          {/* Insights Panel - Below Graphs on Mobile, Right Side on Desktop */}
+          <div className={cn(
+            "w-full lg:w-96 border-t lg:border-t-0 lg:border-l bg-background overflow-auto",
+            "min-h-[400px] lg:min-h-0"
+          )}>
+            <InsightsPanel 
+              analysis={analysis}
+              isLoading={isLoading}
+              aiEnabled={aiEnabled}
+            />
+          </div>
         </div>
       </div>
     </div>
