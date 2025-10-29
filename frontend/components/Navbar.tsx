@@ -28,18 +28,19 @@ interface NavbarProps {
   onExport?: (format: 'csv' | 'pdf') => void;
   onToggleSidebar?: () => void;
   sidebarCollapsed?: boolean;
+  isMobile?: boolean;
 }
 
 export default function Navbar({
   onExport,
   onToggleSidebar,
-  sidebarCollapsed
+  sidebarCollapsed,
+  isMobile = false
 }: NavbarProps) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Fix hydration error by only rendering theme content after mount
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -49,22 +50,26 @@ export default function Navbar({
   };
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 items-center px-4">
+    <nav className="sticky top-0 z-30 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="flex h-14 items-center px-3 sm:px-4 md:px-6">
         
-        {/* ✅ NEW: Hamburger Menu for Sidebar Toggle */}
+        {/* Mobile Menu Button (Hamburger) */}
         {onToggleSidebar && (
           <Button
             variant="ghost"
             size="icon"
             onClick={onToggleSidebar}
             className={cn(
-              "mr-3 transition-all duration-300 hover:bg-primary/10",
-              sidebarCollapsed && "hover:bg-green-500/10"
+              "mr-2 sm:mr-3 transition-all duration-300",
+              isMobile ? "hover:bg-primary/10" : [
+                sidebarCollapsed ? "hover:bg-green-500/10" : "hover:bg-primary/10"
+              ]
             )}
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={isMobile ? 'Open menu' : (sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
           >
-            {sidebarCollapsed ? (
+            {isMobile ? (
+              <Menu className="h-5 w-5" />
+            ) : sidebarCollapsed ? (
               <PanelLeftOpen className="h-5 w-5 text-green-600 dark:text-green-400" />
             ) : (
               <PanelLeftClose className="h-5 w-5 text-primary" />
@@ -72,26 +77,24 @@ export default function Navbar({
           </Button>
         )}
 
-        {/* Logo */}
-        <div className="flex items-center gap-2 mr-4">
+        {/* Logo - Responsive */}
+        <div className="flex items-center gap-2 mr-auto">
           <div className="relative">
-            <BarChart3 className="h-6 w-6 text-primary" />
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+            <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+            <span className="absolute -top-1 -right-1 flex h-2 w-2 sm:h-3 sm:w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 sm:h-3 sm:w-3 bg-primary"></span>
             </span>
           </div>
           <div className="flex flex-col">
-            <span className="font-semibold text-sm md:text-base bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            <span className="font-semibold text-xs sm:text-sm md:text-base bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
               Review Intelligence
             </span>
-            <span className="text-[10px] md:text-xs text-muted-foreground hidden sm:block">
-              AI-Powered Analytics Dashboard
+            <span className="text-[9px] sm:text-[10px] md:text-xs text-muted-foreground hidden sm:block">
+              AI-Powered Analytics
             </span>
           </div>
         </div>
-
-        <div className="flex-1" />
 
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-2">
@@ -121,10 +124,6 @@ export default function Navbar({
               >
                 <span className="mr-2">📄</span> Export as PDF
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                More formats coming soon
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -144,53 +143,39 @@ export default function Navbar({
               )}
             </Button>
           )}
-
-          {/* Sidebar Status Indicator */}
-          {onToggleSidebar && (
-            <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-md bg-muted/50 border">
-              <span className={cn(
-                "inline-block w-2 h-2 rounded-full transition-colors",
-                sidebarCollapsed ? "bg-orange-500" : "bg-green-500"
-              )} />
-              <span className="text-xs text-muted-foreground font-medium">
-                {sidebarCollapsed ? 'Collapsed' : 'Expanded'}
-              </span>
-            </div>
-          )}
         </div>
 
         {/* Mobile Menu */}
-        <div className="md:hidden">
+        <div className="flex items-center gap-2 md:hidden">
+          {/* Mobile Theme Toggle */}
+          {mounted && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+              className="hover:bg-primary/10"
+            >
+              {theme === 'dark' ? (
+                <Sun className="h-4 w-4 text-yellow-500" />
+              ) : (
+                <Moon className="h-4 w-4 text-blue-600" />
+              )}
+            </Button>
+          )}
+
+          {/* Mobile Export Menu */}
           <DropdownMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                {mobileMenuOpen ? (
-                  <X className="h-5 w-5" />
-                ) : (
-                  <Menu className="h-5 w-5" />
-                )}
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className="hover:bg-primary/10"
+              >
+                <Download className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              
-              {/* Mobile Sidebar Toggle */}
-              {onToggleSidebar && (
-                <>
-                  <DropdownMenuItem 
-                    onClick={onToggleSidebar}
-                    className="cursor-pointer"
-                  >
-                    {sidebarCollapsed ? (
-                      <><PanelLeftOpen className="mr-2 h-4 w-4" /> Expand Sidebar</>
-                    ) : (
-                      <><PanelLeftClose className="mr-2 h-4 w-4" /> Collapse Sidebar</>
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              
-              {/* Export Options */}
+            <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem 
                 onClick={() => {
                   onExport?.('csv');
@@ -209,25 +194,6 @@ export default function Navbar({
               >
                 <span className="mr-2">📄</span> Export PDF
               </DropdownMenuItem>
-              
-              <DropdownMenuSeparator />
-              
-              {/* Theme Toggle */}
-              {mounted && (
-                <DropdownMenuItem 
-                  onClick={() => {
-                    toggleTheme();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="cursor-pointer"
-                >
-                  {theme === 'dark' ? (
-                    <><span className="mr-2">☀️</span> Light Mode</>
-                  ) : (
-                    <><span className="mr-2">🌙</span> Dark Mode</>
-                  )}
-                </DropdownMenuItem>
-              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
