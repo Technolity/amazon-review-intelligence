@@ -1,4 +1,4 @@
-{/* NEW: Compact Mobile Quick Search - Only visible when no analysis or when loading */}
+{/* NEW: Compact Mobile Quick Search - Show when no analysis OR when loading */}
 {(!analysis || isLoading) && (
   <div className="sm:hidden p-3 bg-background border-b">
     <h2 className="text-sm font-semibold mb-3 text-foreground">Ready to analyze</h2>
@@ -6,8 +6,11 @@
       onSubmit={(e) => {
         e.preventDefault();
         const cleanAsin = mobileAsin.trim().toUpperCase();
+        console.log('Form submitted with:', { cleanAsin, mobileMaxReviews, mobileEnableAI, mobileCountry }); // DEBUG
         if (cleanAsin.length === 10) {
           handleAnalyze(cleanAsin, mobileMaxReviews, mobileEnableAI, mobileCountry);
+        } else {
+          console.log('Invalid ASIN length:', cleanAsin.length); // DEBUG
         }
       }}
       className="space-y-2"
@@ -20,7 +23,11 @@
             inputMode="text"
             placeholder="Enter ASIN (e.g., B0CHX3TYK1)"
             value={mobileAsin}
-            onChange={(e) => setMobileAsin(e.target.value.toUpperCase())}
+            onChange={(e) => {
+              const newValue = e.target.value.toUpperCase();
+              console.log('ASIN input changed:', newValue); // DEBUG
+              setMobileAsin(newValue);
+            }}
             maxLength={10}
             className="w-full border rounded-md px-3 h-10 font-mono text-sm bg-background"
             disabled={isLoading}
@@ -28,7 +35,10 @@
         </div>
         <select
           value={mobileCountry}
-          onChange={(e) => setMobileCountry(e.target.value)}
+          onChange={(e) => {
+            console.log('Country changed:', e.target.value); // DEBUG
+            setMobileCountry(e.target.value);
+          }}
           className="border rounded-md px-2 h-10 text-xs bg-background min-w-[70px]"
           disabled={isLoading}
         >
@@ -52,7 +62,10 @@
           <input
             type="checkbox"
             checked={mobileEnableAI}
-            onChange={(e) => setMobileEnableAI(e.target.checked)}
+            onChange={(e) => {
+              console.log('AI toggle changed:', e.target.checked); // DEBUG
+              setMobileEnableAI(e.target.checked);
+            }}
             className="h-3 w-3"
             disabled={isLoading}
           />
@@ -67,7 +80,10 @@
             max={100}
             step={10}
             value={mobileMaxReviews}
-            onChange={(e) => setMobileMaxReviews(Number(e.target.value))}
+            onChange={(e) => {
+              console.log('Max reviews changed:', e.target.value); // DEBUG
+              setMobileMaxReviews(Number(e.target.value));
+            }}
             className="w-12 border rounded px-1 h-6 text-xs bg-background"
             disabled={isLoading}
           />
@@ -82,6 +98,11 @@
       >
         {isLoading ? 'Analyzing…' : 'Analyze Reviews'}
       </button>
+      
+      {/* DEBUG: Show current state */}
+      <div className="text-[10px] text-muted-foreground">
+        ASIN: {mobileAsin} ({mobileAsin.length}/10) | Country: {mobileCountry} | AI: {mobileEnableAI ? 'ON' : 'OFF'} | Max: {mobileMaxReviews}
+      </div>
     </form>
   </div>
 )}
