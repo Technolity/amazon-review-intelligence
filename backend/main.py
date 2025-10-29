@@ -5,14 +5,16 @@ Amazon Review Intelligence System
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from contextlib import asynccontextmanager
 import uvicorn
 import os
+from datetime import datetime
 
 from app.core.config import settings
 from app.services.mock_data import mock_generator
 from app.services.free_ai_nlp import free_ai_nlp
+from app.services.exporter import exporter
 
 # Lifespan context manager
 @asynccontextmanager
@@ -85,7 +87,9 @@ async def root():
             "api": {
                 "reviews": "/api/v1/reviews/fetch",
                 "analyze": "/api/v1/analyze",
-                "insights": "/api/v1/insights"
+                "insights": "/api/v1/insights",
+                "export_csv": "/api/v1/export/csv",
+                "export_pdf": "/api/v1/export/pdf"
             }
         }
     }
@@ -96,11 +100,12 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "timestamp": "2025-01-01T00:00:00Z",
+        "timestamp": datetime.now().isoformat(),
         "services": {
             "api": "operational",
             "nlp": "operational",
-            "mock_data": "operational"
+            "mock_data": "operational",
+            "export": "operational"
         },
         "ai_models": {
             "sentiment": "VADER (active)",
@@ -116,7 +121,7 @@ async def health_check():
 @app.post("/api/v1/reviews/fetch")
 async def fetch_reviews(request: dict):
     """
-    Fetch mock reviews for a product
+    Fetch mock reviews for a product with country support
     """
     try:
         asin = request.get("asin", "B08N5WRWNW")
@@ -143,7 +148,7 @@ async def fetch_reviews(request: dict):
 @app.post("/api/v1/analyze")
 async def analyze_reviews(request: dict):
     """
-    Comprehensive analysis with free AI/NLP
+    Comprehensive analysis with free AI/NLP and country support
     """
     try:
         asin = request.get("asin", "B08N5WRWNW")
@@ -183,7 +188,7 @@ async def analyze_reviews(request: dict):
                 "themes": ai_analysis["themes"],
                 "top_keywords": ai_analysis["top_keywords"],
                 "insights": insights,
-                "reviews": ai_analysis["reviews"][:20],
+                "reviews": ai_analysis["reviews"][:20],  # Return first 20 with AI analysis
                 "product_info": reviews_data["product_info"],
                 "ai_provider": "free_nlp_stack",
                 "data_source": "mock_generator"
@@ -206,7 +211,7 @@ async def analyze_reviews(request: dict):
 @app.get("/api/v1/analyze/{asin}")
 async def analyze_by_asin(asin: str, max_reviews: int = 50, country: str = "US"):
     """
-    Quick analysis by ASIN (GET request)
+    Quick analysis by ASIN (GET request) with country support
     """
     return await analyze_reviews({
         "asin": asin,
@@ -241,17 +246,86 @@ async def generate_insights(request: dict):
 
 
 @app.get("/api/v1/product/{asin}")
-async def get_product_info(asin: str):
+async def get_product_info(asin: str, country: str = "US"):
     """
-    Get mock product information
+    Get mock product information with country support
     """
     try:
-        product_info = mock_generator.get_sample_product_info(asin)
+        product_info = mock_generator.get_sample_product_info(asin, country=country)
         return {
             "success": True,
             "product": product_info
         }
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============= EXPORT ENDPOINTS =============
+
+@app.post("/api/v1/export/csv")
+async def export_csv(request: dict):
+    """Export analysis data to CSV using existing exporter"""
+    try:
+        analysis_data = request.get("analysis_data")
+        if not analysis_data:
+            raise HTTPException(status_code=400, detail="analysis_data required")
+        
+        print(f"📤 Exporting CSV for ASIN: {analysis_data.get('asin', 'N/A')}")
+        
+        # Use your existing exporter
+        result = exporter.export_to_csv(analysis_data)
+        
+        if result.get("success"):
+            file_path = result.get("file_path")
+            if os.path.exists(file_path):
+                # Return the file as download
+                filename = os.path.basename(file_path)
+                print(f"✅ CSV export successful: {filename}")
+                return FileResponse(
+                    path=file_path,
+                    media_type="text/csv",
+                    filename=filename
+                )
+            else:
+                raise HTTPException(status_code=500, detail="Export file not found")
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Export failed"))
+        
+    except Exception as e:
+        print(f"❌ CSV export failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/export/pdf")
+async def export_pdf(request: dict):
+    """Export analysis data to PDF using existing exporter"""
+    try:
+        analysis_data = request.get("analysis_data")
+        if not analysis_data:
+            raise HTTPException(status_code=400, detail="analysis_data required")
+        
+        print(f"📤 Exporting PDF for ASIN: {analysis_data.get('asin', 'N/A')}")
+        
+        # Use your existing exporter
+        result = exporter.export_to_pdf(analysis_data)
+        
+        if result.get("success"):
+            file_path = result.get("file_path")
+            if os.path.exists(file_path):
+                # Return the file as download
+                filename = os.path.basename(file_path)
+                print(f"✅ PDF export successful: {filename}")
+                return FileResponse(
+                    path=file_path,
+                    media_type="application/pdf",
+                    filename=filename
+                )
+            else:
+                raise HTTPException(status_code=500, detail="Export file not found")
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Export failed"))
+        
+    except Exception as e:
+        print(f"❌ PDF export failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
