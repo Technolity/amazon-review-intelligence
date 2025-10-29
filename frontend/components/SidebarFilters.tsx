@@ -45,12 +45,13 @@ const EXAMPLE_ASINS = [
 ];
 
 const COUNTRIES = [
-  { code: 'US', label: 'United States' },
-  { code: 'UK', label: 'United Kingdom' },
-  { code: 'DE', label: 'Germany' },
-  { code: 'FR', label: 'France' },
-  { code: 'JP', label: 'Japan' },
-  { code: 'CA', label: 'Canada' },
+{ code: 'US', label: 'United States' },
+{ code: 'UK', label: 'United Kingdom' },
+{ code: 'DE', label: 'Germany' },
+{ code: 'FR', label: 'France' },
+{ code: 'JP', label: 'Japan' },
+{ code: 'CA', label: 'Canada' },
+{ code: 'IN', label: 'India' }, // NEW
 ];
 
 export default function SidebarFilters({
@@ -273,7 +274,16 @@ export default function SidebarFilters({
             {COUNTRIES.map((c) => (
               <SelectItem key={c.code} value={c.code} className="text-sm">
                 <span className="flex items-center gap-2">
-                  <span className="text-lg">{c.code === 'US' ? '🇺🇸' : c.code === 'UK' ? '🇬🇧' : c.code === 'DE' ? '🇩🇪' : c.code === 'FR' ? '🇫🇷' : c.code === 'JP' ? '🇯🇵' : '🇨🇦'}</span>
+                  <span className="text-lg">
+                          {c.code === 'US' ? '🇺🇸'
+                          : c.code === 'UK' ? '🇬🇧'
+                          : c.code === 'DE' ? '🇩🇪'
+                          : c.code === 'FR' ? '🇫🇷'
+                          : c.code === 'JP' ? '🇯🇵'
+                          : c.code === 'CA' ? '🇨🇦'
+                          : c.code === 'IN' ? '🇮🇳'
+                          : '🌍'}
+                  </span>
                   {c.label}
                 </span>
               </SelectItem>
