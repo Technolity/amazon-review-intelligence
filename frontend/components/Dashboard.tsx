@@ -289,92 +289,91 @@ export default function Dashboard() {
           {/* Graph/Chart Area - Full Width on Mobile */}
           <div className="flex-1 overflow-auto bg-muted/30">
             
-            {/* NEW: Mobile Quick Search - Only visible on mobile screens */}
-            <div className="sm:hidden p-4 bg-background border-b">
-              <h2 className="text-sm font-semibold mb-3 text-foreground">Ready to analyze</h2>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const cleanAsin = mobileAsin.trim().toUpperCase();
-                  if (cleanAsin.length === 10) {
-                    handleAnalyze(cleanAsin, mobileMaxReviews, mobileEnableAI, mobileCountry);
-                  }
-                }}
-                className="space-y-3"
-              >
-                {/* ASIN input */}
-                <div className="space-y-1.5">
-                  <input
-                    type="text"
-                    inputMode="text"
-                    placeholder="Enter ASIN (e.g., B0CHX3TYK1)"
-                    value={mobileAsin}
-                    onChange={(e) => setMobileAsin(e.target.value.toUpperCase())}
-                    maxLength={10}
-                    className="w-full border rounded-md px-3 h-10 font-mono text-sm bg-background"
-                    disabled={isLoading}
-                  />
-                  <p className="text-[10px] text-muted-foreground">
-                    10-character Amazon product ID
-                  </p>
-                </div>
-
-                {/* Row: AI toggle + Max reviews */}
-                <div className="flex items-center justify-between gap-2">
-                  <label className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 flex-1">
-                    <input
-                      type="checkbox"
-                      checked={mobileEnableAI}
-                      onChange={(e) => setMobileEnableAI(e.target.checked)}
-                      className="h-4 w-4"
-                      disabled={isLoading}
-                    />
-                    <span className="text-xs font-medium">AI Analysis</span>
-                  </label>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Max</span>
-                    <input
-                      type="number"
-                      min={10}
-                      max={100}
-                      step={10}
-                      value={mobileMaxReviews}
-                      onChange={(e) => setMobileMaxReviews(Number(e.target.value))}
-                      className="w-20 border rounded-md px-2 h-9 text-sm bg-background"
-                      disabled={isLoading}
-                    />
-                  </div>
-                </div>
-
-                {/* Region select */}
-                <div>
-                  <select
-                    value={mobileCountry}
-                    onChange={(e) => setMobileCountry(e.target.value)}
-                    className="w-full border rounded-md px-3 h-10 text-sm bg-background"
-                    disabled={isLoading}
-                  >
-                    <option value="US">🇺🇸 United States (.com)</option>
-                    <option value="UK">🇬🇧 United Kingdom (.co.uk)</option>
-                    <option value="DE">🇩🇪 Germany (.de)</option>
-                    <option value="FR">🇫🇷 France (.fr)</option>
-                    <option value="JP">🇯🇵 Japan (.co.jp)</option>
-                    <option value="CA">🇨🇦 Canada (.ca)</option>
-                    <option value="IN">🇮🇳 India (.in)</option>
-                  </select>
-                </div>
-
-                {/* Analyze button */}
-                <button
-                  type="submit"
-                  className="w-full h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
-                  disabled={isLoading || mobileAsin.length !== 10}
+            {/* NEW: Compact Mobile Quick Search - Only visible when no analysis or when loading */}
+            {(!analysis || isLoading) && (
+              <div className="sm:hidden p-3 bg-background border-b">
+                <h2 className="text-sm font-semibold mb-3 text-foreground">Ready to analyze</h2>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const cleanAsin = mobileAsin.trim().toUpperCase();
+                    if (cleanAsin.length === 10) {
+                      handleAnalyze(cleanAsin, mobileMaxReviews, mobileEnableAI, mobileCountry);
+                    }
+                  }}
+                  className="space-y-2"
                 >
-                  {isLoading ? 'Analyzing…' : 'Analyze Reviews'}
-                </button>
-              </form>
-            </div>
+                  {/* ASIN input */}
+                  <div>
+                    <input
+                      type="text"
+                      inputMode="text"
+                      placeholder="Enter ASIN (e.g., B0CHX3TYK1)"
+                      value={mobileAsin}
+                      onChange={(e) => setMobileAsin(e.target.value.toUpperCase())}
+                      maxLength={10}
+                      className="w-full border rounded-md px-3 h-10 font-mono text-sm bg-background"
+                      disabled={isLoading}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      10-character Amazon product ID
+                    </p>
+                  </div>
+
+                  {/* Compact Row: AI toggle + Max reviews + Country */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <label className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-muted/50">
+                      <input
+                        type="checkbox"
+                        checked={mobileEnableAI}
+                        onChange={(e) => setMobileEnableAI(e.target.checked)}
+                        className="h-3 w-3"
+                        disabled={isLoading}
+                      />
+                      <span className="font-medium">AI</span>
+                    </label>
+
+                    <div className="flex items-center gap-1">
+                      <span className="text-muted-foreground">Max</span>
+                      <input
+                        type="number"
+                        min={10}
+                        max={100}
+                        step={10}
+                        value={mobileMaxReviews}
+                        onChange={(e) => setMobileMaxReviews(Number(e.target.value))}
+                        className="w-12 border rounded px-1 h-6 text-xs bg-background"
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <select
+                      value={mobileCountry}
+                      onChange={(e) => setMobileCountry(e.target.value)}
+                      className="flex-1 border rounded px-2 h-6 text-xs bg-background"
+                      disabled={isLoading}
+                    >
+                      <option value="US">🇺🇸 US</option>
+                      <option value="UK">🇬🇧 UK</option>
+                      <option value="DE">🇩🇪 DE</option>
+                      <option value="FR">🇫🇷 FR</option>
+                      <option value="JP">🇯🇵 JP</option>
+                      <option value="CA">🇨🇦 CA</option>
+                      <option value="IN">🇮🇳 IN</option>
+                    </select>
+                  </div>
+
+                  {/* Analyze button */}
+                  <button
+                    type="submit"
+                    className="w-full h-9 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={isLoading || mobileAsin.length !== 10}
+                  >
+                    {isLoading ? 'Analyzing…' : 'Analyze Reviews'}
+                  </button>
+                </form>
+              </div>
+            )}
 
             <GraphArea 
               analysis={analysis}
