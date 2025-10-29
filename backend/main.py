@@ -121,16 +121,18 @@ async def fetch_reviews(request: dict):
     try:
         asin = request.get("asin", "B08N5WRWNW")
         max_reviews = request.get("max_reviews", 50)
+        country = request.get("country", "US")  # NEW: Accept country parameter
         
-        print(f"\n📦 Fetching mock reviews for ASIN: {asin}")
+        print(f"\n📦 Fetching mock reviews for ASIN: {asin}, Country: {country}")
         
-        # Generate mock reviews
+        # Generate mock reviews with country awareness
         reviews_data = mock_generator.generate_reviews(
             count=min(max_reviews, 100),
-            asin=asin
+            asin=asin,
+            country=country  # Pass country to mock generator
         )
         
-        print(f"✅ Generated {reviews_data['total_reviews']} mock reviews\n")
+        print(f"✅ Generated {reviews_data['total_reviews']} mock reviews for {country}\n")
         
         return reviews_data
         
@@ -147,15 +149,17 @@ async def analyze_reviews(request: dict):
         asin = request.get("asin", "B08N5WRWNW")
         max_reviews = request.get("max_reviews", 50)
         enable_ai = request.get("enable_ai", True)
+        country = request.get("country", "US")  # NEW: Accept country parameter
         
         print(f"\n🔍 Starting analysis for ASIN: {asin}")
-        print(f"   Reviews: {max_reviews}, AI: {enable_ai}")
+        print(f"   Reviews: {max_reviews}, AI: {enable_ai}, Country: {country}")
         
         # Step 1: Get reviews
         print("  1️⃣ Generating mock reviews...")
         reviews_data = mock_generator.generate_reviews(
             count=min(max_reviews, 100),
-            asin=asin
+            asin=asin,
+            country=country  # Pass country to mock generator
         )
         
         # Step 2: AI/NLP Analysis
@@ -170,6 +174,7 @@ async def analyze_reviews(request: dict):
             result = {
                 "success": True,
                 "asin": asin,
+                "country": country,  # Include country in response 
                 "total_reviews": reviews_data["total_reviews"],
                 "average_rating": reviews_data["average_rating"],
                 "rating_distribution": reviews_data["rating_distribution"],
@@ -178,7 +183,7 @@ async def analyze_reviews(request: dict):
                 "themes": ai_analysis["themes"],
                 "top_keywords": ai_analysis["top_keywords"],
                 "insights": insights,
-                "reviews": ai_analysis["reviews"][:20],  # Return first 20 with AI analysis
+                "reviews": ai_analysis["reviews"][:20],
                 "product_info": reviews_data["product_info"],
                 "ai_provider": "free_nlp_stack",
                 "data_source": "mock_generator"
@@ -199,14 +204,15 @@ async def analyze_reviews(request: dict):
 
 
 @app.get("/api/v1/analyze/{asin}")
-async def analyze_by_asin(asin: str, max_reviews: int = 50):
+async def analyze_by_asin(asin: str, max_reviews: int = 50, country: str = "US"):
     """
     Quick analysis by ASIN (GET request)
     """
     return await analyze_reviews({
         "asin": asin,
         "max_reviews": max_reviews,
-        "enable_ai": True
+        "enable_ai": True,
+        "country": country  # NEW: Include country parameter
     })
 
 
