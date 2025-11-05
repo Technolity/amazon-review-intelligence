@@ -1,6 +1,6 @@
 /**
  * Utility functions for the application.
- * Updated for Apify-only backend with max 5 reviews.
+ * Updated for Apify-only backend with max 50 reviews.
  */
 
 import { type ClassValue, clsx } from 'clsx';

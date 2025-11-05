@@ -1,159 +1,213 @@
-// Type definitions for Amazon Review Intelligence
+/**
+ * Type definitions for Amazon Review Intelligence
+ */
 
+// Review types
 export interface Review {
   id: string;
-  asin: string;
+  rating: number;
   title: string;
   text: string;
-  rating: number;
   author: string;
   date: string;
-  verified_purchase: boolean;
+  verified: boolean;
   helpful_count: number;
-  vine_program?: boolean;
-  country?: string;
-  
-  // AI/NLP fields (added after analysis)
-  ai_sentiment?: string;
+  sentiment?: string;
   sentiment_confidence?: number;
-  sentiment_scores?: {
-    positive: number;
-    neutral: number;
-    negative: number;
-    compound: number;
-  };
   polarity?: number;
   subjectivity?: number;
-  emotions?: {
-    joy: number;
-    sadness: number;
-    anger: number;
-    fear: number;
-    surprise: number;
-  };
+  emotions?: Record<string, number>;
 }
 
+// Product information
+export interface ProductInfo {
+  title: string;
+  brand: string;
+  price: string;
+  image: string;
+  rating?: number;
+  total_reviews?: number;
+  asin?: string;
+}
+
+// Sentiment distribution
 export interface SentimentDistribution {
   positive: number;
   neutral: number;
   negative: number;
 }
 
+// Rating distribution
 export interface RatingDistribution {
-  '5_star': number;
-  '4_star': number;
-  '3_star': number;
-  '2_star': number;
-  '1_star': number;
-  // ADDED: Support for both naming conventions (backend compatibility)
-  '5'?: number;
-  '4'?: number;
-  '3'?: number;
-  '2'?: number;
-  '1'?: number;
+  '5': number;
+  '4': number;
+  '3': number;
+  '2': number;
+  '1': number;
 }
 
+// Keyword data
 export interface Keyword {
   word: string;
   frequency: number;
-  relevance?: number;
+  weight?: number;
 }
 
+// Theme data
 export interface Theme {
   theme: string;
-  mentions: number;
-  sentiment: string;
-  confidence: number;
   keywords?: string[];
+  mentions: number;
+  importance?: number;
+  sentiment?: string;
 }
 
-export interface AggregateMetrics {
-  avg_confidence: number;
-  avg_polarity: number;
-  avg_subjectivity: number;
-}
-
+// Insights
 export interface Insights {
   insights: string[];
+  recommendations?: string[];
   summary: string;
-  confidence_level: string;
-  // ADDED: Support for strengths and weaknesses
-  strengths?: string[];
-  weaknesses?: string[];
+  confidence?: string;
 }
 
-export interface ProductInfo {
-  asin?: string;
-  title?: string;
-  brand?: string;
-  category?: string;
-  price?: number;
-  currency?: string;
-  in_stock?: boolean;
-  images?: string[];
+// Growth data point
+export interface GrowthDataPoint {
+  date: string;
+  buyers: number;
+  trend: 'up' | 'down' | 'stable';
+  rating?: number;
+  review_velocity?: number;
 }
 
-// ADDED: Emotion Analysis interface for GraphArea compatibility
-export interface EmotionAnalysis {
-  joy: number;
-  trust: number;
-  surprise: number;
-  sadness: number;
-  anger: number;
-  fear: number;
+// Analysis metadata
+export interface AnalysisMetadata {
+  asin: string;
+  timestamp: string;
+  data_source: 'apify' | 'mock' | 'unknown';
+  ai_enabled: boolean;
+  total_reviews?: number;
+  processing_time?: string;
 }
 
+// Main analysis result
 export interface AnalysisResult {
   success: boolean;
-  asin: string;
-  total_reviews: number;
-  average_rating?: number;
-  
-  // Sentiment data
-  sentiment_distribution: SentimentDistribution;
-  
-  // Rating distribution (optional)
-  rating_distribution?: RatingDistribution;
-  
-  // Aggregate metrics
-  aggregate_metrics?: AggregateMetrics;
-  
-  // Themes and keywords
-  themes?: Theme[];
-  top_keywords?: Keyword[];
-  
-  // Insights
-  insights?: Insights;
-  
-  // ADDED: Emotion analysis for spider graph
-  emotion_analysis?: EmotionAnalysis;
-  
-  // Reviews (subset with AI analysis)
-  reviews?: Review[];
-  
-  // Product information
+  asin?: string;
+  country?: string;
   product_info?: ProductInfo;
-  
-  // Metadata
-  data_source?: string;
+  reviews?: Review[];
+  total_reviews: number;
+  average_rating: number;
+  rating_distribution: RatingDistribution;
+  sentiment_distribution?: SentimentDistribution;
+  aggregate_metrics?: {
+    avg_confidence?: number;
+    avg_polarity?: number;
+    avg_subjectivity?: number;
+  };
+  emotions?: Record<string, number>;
+  top_keywords?: Keyword[];
+  themes?: Theme[];
+  insights?: Insights | string[];
+  summary?: string;
+  data_source?: 'apify' | 'mock';
   ai_provider?: string;
-  models_used?: string[];
-  generated_at?: string;
-  
-  // Error handling
+  metadata?: AnalysisMetadata;
   error?: string;
   error_type?: string;
 }
 
-export interface ExportRequest {
+// API Request types
+export interface AnalysisRequest {
   asin: string;
-  format: 'csv' | 'pdf';
-  include_raw_reviews?: boolean;
+  max_reviews: number;
+  enable_ai: boolean;
+  country: string;
+}
+
+export interface ReviewFetchRequest {
+  asin: string;
+  max_reviews: number;
+  country: string;
+}
+
+export interface GrowthRequest {
+  asin: string;
+  period: 'day' | 'week' | 'month' | 'quarter';
+}
+
+export interface InsightsRequest {
+  reviews: Review[];
+}
+
+// API Response types
+export interface APIResponse<T = any> {
+  success: boolean;
+  data?: T;
+  metadata?: AnalysisMetadata;
+  error?: string;
+  error_type?: string;
+}
+
+export interface GrowthResponse {
+  success: boolean;
+  asin: string;
+  period: string;
+  data: GrowthDataPoint[];
+  metadata?: {
+    timestamp: string;
+    data_points: number;
+  };
+}
+
+// Export request/response types
+export interface ExportRequest {
+  format: 'pdf' | 'excel' | 'csv';
+  data: AnalysisResult;
 }
 
 export interface ExportResponse {
   success: boolean;
-  file_path?: string;
-  download_url?: string;
+  filename?: string;
+  url?: string;
   error?: string;
+}
+
+// Dashboard state types
+export interface DashboardState {
+  analysis: AnalysisResult | null;
+  isLoading: boolean;
+  currentAsin: string;
+  aiEnabled: boolean;
+  error: string | null;
+}
+
+// Filter settings
+export interface FilterSettings {
+  asin: string;
+  maxReviews: number;
+  enableAI: boolean;
+  country: string;
+}
+
+// Constants
+export const MAX_REVIEWS_LIMIT = 100;
+export const DEFAULT_MAX_REVIEWS = 50;
+export const SUPPORTED_COUNTRIES = [
+  { code: 'US', label: '🇺🇸 United States' },
+  { code: 'UK', label: '🇬🇧 United Kingdom' },
+  { code: 'IN', label: '🇮🇳 India' },
+  { code: 'CA', label: '🇨🇦 Canada' },
+  { code: 'DE', label: '🇩🇪 Germany' },
+  { code: 'FR', label: '🇫🇷 France' },
+  { code: 'JP', label: '🇯🇵 Japan' },
+];
+
+// Utility type for API errors
+export interface APIError {
+  success: false;
+  error: string;
+  error_type?: string;
+  status?: number;
+  data?: any;
 }

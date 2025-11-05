@@ -1,5 +1,5 @@
 """
-Enhanced FastAPI Application - Production Ready with Mock Data
+Enhanced FastAPI Application - Production Ready with Apify Integration
 Amazon Review Intelligence System
 """
 
@@ -12,26 +12,22 @@ import os
 from datetime import datetime
 
 from app.core.config import settings
-from app.services.mock_data import mock_generator
+from app.services.apify_service import apify_service  # Use service singleton
 from app.services.free_ai_nlp import free_ai_nlp
 from app.services.exporter import exporter
 
-# Lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     print("=" * 60)
     print(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION}")
     print("=" * 60)
     print(f"📍 Environment: {'Development' if settings.DEBUG else 'Production'}")
     print(f"🔧 Debug Mode: {'ON' if settings.DEBUG else 'OFF'}")
     print(f"🤖 AI Mode: Free NLP Stack (VADER + TextBlob + NLTK)")
-    print(f"📊 Data Source: Mock Generator (for development)")
     print(f"🌐 CORS Origins: {settings.ALLOWED_ORIGINS}")
     print(f"🔗 Host: {settings.HOST}:{settings.PORT}")
     print("=" * 60)
     
-    # Download NLTK data
     try:
         import nltk
         print("📥 Downloading NLTK data...")
@@ -43,13 +39,9 @@ async def lifespan(app: FastAPI):
         print(f"⚠️ NLTK setup warning: {e}")
     
     print("✅ Application ready!\n")
-    
     yield
-    
-    # Shutdown
     print("\n👋 Shutting down gracefully...")
 
-# Create FastAPI app
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
@@ -59,7 +51,6 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -68,18 +59,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# ============= ROOT ENDPOINTS =============
-
 @app.get("/")
 async def root():
-    """Root endpoint with API information"""
     return {
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "running",
         "mode": "development" if settings.DEBUG else "production",
-        "data_source": "mock_generator",
+        "data_source": "apifyservice",
         "ai_models": "free_nlp_stack",
         "endpoints": {
             "health": "/health",
@@ -94,17 +81,15 @@ async def root():
         }
     }
 
-
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "services": {
             "api": "operational",
             "nlp": "operational",
-            "mock_data": "operational",
+            "apify": "operational",
             "export": "operational"
         },
         "ai_models": {
@@ -115,130 +100,102 @@ async def health_check():
         }
     }
 
-
-# ============= API V1 ENDPOINTS =============
-
 @app.post("/api/v1/reviews/fetch")
 async def fetch_reviews(request: dict):
-    """
-    Fetch mock reviews for a product with country support
-    """
     try:
         asin = request.get("asin", "B08N5WRWNW")
-        max_reviews = request.get("max_reviews", 50)
-        country = request.get("country", "US")  # NEW: Accept country parameter
+        max_reviews = min(request.get("max_reviews", 50), 100)
+        country = request.get("country", "US")
         
-        print(f"\n📦 Fetching mock reviews for ASIN: {asin}, Country: {country}")
+        print(f"\n📦 Fetching reviews for ASIN: {asin}, Country: {country}, Max: {max_reviews}")
         
-        # Generate mock reviews with country awareness
-        reviews_data = mock_generator.generate_reviews(
-            count=min(max_reviews, 100),
+        reviews_data = await apify_service.fetch_reviews(
             asin=asin,
-            country=country  # Pass country to mock generator
+            max_reviews=max_reviews,
+            country=country
         )
         
-        print(f"✅ Generated {reviews_data['total_reviews']} mock reviews for {country}\n")
+        print(f"✅ Fetched {len(reviews_data['reviews'])} reviews\n")
         
         return reviews_data
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.post("/api/v1/analyze")
 async def analyze_reviews(request: dict):
-    """
-    Comprehensive analysis with free AI/NLP and country support
-    """
     try:
         asin = request.get("asin", "B08N5WRWNW")
-        max_reviews = request.get("max_reviews", 50)
+        max_reviews = min(request.get("max_reviews", 50), 100)
         enable_ai = request.get("enable_ai", True)
-        country = request.get("country", "US")  # NEW: Accept country parameter
+        country = request.get("country", "US")
         
         print(f"\n🔍 Starting analysis for ASIN: {asin}")
         print(f"   Reviews: {max_reviews}, AI: {enable_ai}, Country: {country}")
         
-        # Step 1: Get reviews
-        print("  1️⃣ Generating mock reviews...")
-        reviews_data = mock_generator.generate_reviews(
-            count=min(max_reviews, 100),
+        reviews_data = apify_service.fetch_reviews(
             asin=asin,
-            country=country  # Pass country to mock generator
+            max_reviews=max_reviews,
+            country=country
         )
         
-        # Step 2: AI/NLP Analysis
         if enable_ai:
-            print("  2️⃣ Running AI/NLP analysis...")
+            print("   Running AI/NLP analysis...")
             ai_analysis = free_ai_nlp.analyze_review_batch(reviews_data["reviews"])
-            
-            print("  3️⃣ Generating insights...")
+            print("   Generating insights...")
             insights = free_ai_nlp.generate_insights(ai_analysis)
-            
-            # Combine results
             result = {
                 "success": True,
                 "asin": asin,
-                "country": country,  # Include country in response 
+                "country": country,
                 "total_reviews": reviews_data["total_reviews"],
-                "average_rating": reviews_data["average_rating"],
-                "rating_distribution": reviews_data["rating_distribution"],
+                "average_rating": reviews_data.get("average_rating"),
+                "rating_distribution": reviews_data.get("rating_distribution"),
                 "sentiment_distribution": ai_analysis["sentiment_distribution"],
                 "aggregate_metrics": ai_analysis["aggregate_metrics"],
                 "themes": ai_analysis["themes"],
                 "top_keywords": ai_analysis["top_keywords"],
                 "insights": insights,
-                "reviews": ai_analysis["reviews"][:20],  # Return first 20 with AI analysis
-                "product_info": reviews_data["product_info"],
+                "reviews": ai_analysis["reviews"][:20],
+                "product_info": reviews_data.get("product_info"),
                 "ai_provider": "free_nlp_stack",
-                "data_source": "mock_generator"
+                "data_source": "apify"
             }
         else:
-            # Basic analysis without AI
             result = {
                 **reviews_data,
                 "ai_enabled": False
             }
         
-        print("  ✅ Analysis complete!\n")
+        print("   ✅ Analysis complete!\n")
         return result
         
     except Exception as e:
-        print(f"  ❌ Analysis failed: {e}\n")
+        print(f"   ❌ Analysis failed: {e}\n")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/v1/analyze/{asin}")
 async def analyze_by_asin(asin: str, max_reviews: int = 50, country: str = "US"):
-    """
-    Quick analysis by ASIN (GET request) with country support
-    """
-    return await analyze_reviews({
+    return analyze_reviews({
         "asin": asin,
         "max_reviews": max_reviews,
         "enable_ai": True,
-        "country": country  # NEW: Include country parameter
+        "country": country
     })
 
 
 @app.post("/api/v1/insights")
 async def generate_insights(request: dict):
-    """
-    Generate advanced insights from analysis
-    """
     try:
         analysis_data = request.get("analysis_data")
-        
         if not analysis_data:
             raise HTTPException(status_code=400, detail="analysis_data required")
-        
         insights = free_ai_nlp.generate_insights(analysis_data)
-        
         return {
             "success": True,
             "insights": insights
         }
-        
     except HTTPException:
         raise
     except Exception as e:
@@ -247,11 +204,8 @@ async def generate_insights(request: dict):
 
 @app.get("/api/v1/product/{asin}")
 async def get_product_info(asin: str, country: str = "US"):
-    """
-    Get mock product information with country support
-    """
     try:
-        product_info = mock_generator.get_sample_product_info(asin, country=country)
+        product_info = apify_service.get_product_info(asin, country=country)
         return {
             "success": True,
             "product": product_info
@@ -260,11 +214,8 @@ async def get_product_info(asin: str, country: str = "US"):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============= EXPORT ENDPOINTS =============
-
 @app.post("/api/v1/export/csv")
 async def export_csv(request: dict):
-    """Export analysis data to CSV using existing exporter"""
     try:
         analysis_data = request.get("analysis_data")
         if not analysis_data:
@@ -272,13 +223,11 @@ async def export_csv(request: dict):
         
         print(f"📤 Exporting CSV for ASIN: {analysis_data.get('asin', 'N/A')}")
         
-        # Use your existing exporter
         result = exporter.export_to_csv(analysis_data)
         
         if result.get("success"):
             file_path = result.get("file_path")
             if os.path.exists(file_path):
-                # Return the file as download
                 filename = os.path.basename(file_path)
                 print(f"✅ CSV export successful: {filename}")
                 return FileResponse(
@@ -290,14 +239,13 @@ async def export_csv(request: dict):
                 raise HTTPException(status_code=500, detail="Export file not found")
         else:
             raise HTTPException(status_code=500, detail=result.get("error", "Export failed"))
-        
     except Exception as e:
         print(f"❌ CSV export failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/api/v1/export/pdf")
 async def export_pdf(request: dict):
-    """Export analysis data to PDF using existing exporter"""
     try:
         analysis_data = request.get("analysis_data")
         if not analysis_data:
@@ -305,13 +253,11 @@ async def export_pdf(request: dict):
         
         print(f"📤 Exporting PDF for ASIN: {analysis_data.get('asin', 'N/A')}")
         
-        # Use your existing exporter
         result = exporter.export_to_pdf(analysis_data)
         
         if result.get("success"):
             file_path = result.get("file_path")
             if os.path.exists(file_path):
-                # Return the file as download
                 filename = os.path.basename(file_path)
                 print(f"✅ PDF export successful: {filename}")
                 return FileResponse(
@@ -323,13 +269,10 @@ async def export_pdf(request: dict):
                 raise HTTPException(status_code=500, detail="Export file not found")
         else:
             raise HTTPException(status_code=500, detail=result.get("error", "Export failed"))
-        
     except Exception as e:
         print(f"❌ PDF export failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ============= ERROR HANDLERS =============
 
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
@@ -354,8 +297,6 @@ async def internal_error_handler(request, exc):
         }
     )
 
-
-# ============= DEVELOPMENT SERVER =============
 
 if __name__ == "__main__":
     uvicorn.run(

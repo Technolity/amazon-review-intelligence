@@ -1,379 +1,362 @@
 """
-Apify service for Amazon reviews scraping.
-Updated to return field names that match analyzer expectations.
+Enhanced Apify Service for Amazon Reviews
+Supports multi-country fetching with proper error handling and fallbacks
 """
 
 import os
 import time
 import json
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
+from datetime import datetime
 from apify_client import ApifyClient
+from app.core.config import settings
 
 
 class ApifyService:
-    """Service for fetching Amazon reviews using Apify actors."""
+    """Enhanced Apify service for fetching Amazon reviews"""
     
     def __init__(self):
-        # Use the working API key
-        self.api_token = os.getenv('APIFY_API_TOKEN')
-        if not self.api_token:
-            print("❌ APIFY_API_TOKEN not found in environment variables")
-            raise ValueError("APIFY_API_TOKEN environment variable is required")
+        self.api_token = settings.APIFY_API_TOKEN
+        self.actor_id = settings.APIFY_ACTOR_ID
+        self.timeout = settings.APIFY_TIMEOUT_SECONDS
+        self.client = None
         
-        self.client = ApifyClient(self.api_token)
-        # Only use the junglee actor
-        self.actors_to_try = [
-            "junglee/amazon-reviews-scraper"
-        ]
-        print("✅ Apify service initialized - Max 5 reviews per request")
+        if self.api_token:
+            try:
+                self.client = ApifyClient(self.api_token)
+                print("✅ Apify service initialized")
+            except Exception as e:
+                print(f"❌ Apify initialization failed: {e}")
+                self.client = None
+        else:
+            print("⚠️ APIFY_API_TOKEN not configured")
+    
+    def get_service_status(self) -> Dict[str, Any]:
+        """Check if Apify service is available"""
+        if not self.client:
+            return {
+                "available": False,
+                "error": "Apify client not initialized"
+            }
+        
+        try:
+            # Try to get user info as a health check
+            user = self.client.user().get()
+            return {
+                "available": True,
+                "user": user.get("username", "unknown"),
+                "plan": user.get("plan", {}).get("name", "unknown")
+            }
+        except Exception as e:
+            return {
+                "available": False,
+                "error": str(e)
+            }
     
     def _get_amazon_url(self, asin: str, country: str = "US") -> str:
-        """Convert ASIN and country to proper Amazon URL."""
+        """Convert ASIN and country to Amazon URL"""
         country_domains = {
             "US": "amazon.com",
-            "IN": "amazon.in", 
             "UK": "amazon.co.uk",
             "DE": "amazon.de",
             "FR": "amazon.fr",
-            "IT": "amazon.it",
             "ES": "amazon.es",
+            "IT": "amazon.it",
             "CA": "amazon.ca",
+            "IN": "amazon.in",
             "JP": "amazon.co.jp",
             "AU": "amazon.com.au",
             "BR": "amazon.com.br",
-            "MX": "amazon.com.mx"
+            "MX": "amazon.com.mx",
+            "AE": "amazon.ae",
+            "SG": "amazon.sg",
+            "NL": "amazon.nl",
+            "SE": "amazon.se"
         }
         
         domain = country_domains.get(country.upper(), "amazon.com")
         return f"https://www.{domain}/dp/{asin}"
     
-    def _get_junglee_actor_input(self, asin: str, max_reviews: int, country: str) -> Dict:
-        """Get the correct input format for junglee/amazon-reviews-scraper."""
+    def _prepare_actor_input(self, asin: str, max_reviews: int, country: str) -> Dict:
+        """Prepare input for Apify actor"""
         amazon_url = self._get_amazon_url(asin, country)
-        
-        # MAX 5 REVIEWS ONLY
-        actual_max_reviews = min(max_reviews, 5)
         
         return {
             "productUrls": [{"url": amazon_url}],
-            "maxReviews": actual_max_reviews,  # MAX 5 REVIEWS
-            "sort": "recent",  # Get most recent reviews
+            "maxReviews": min(max_reviews, settings.MAX_REVIEWS_PER_REQUEST),
+            "sort": "recent",
             "filterByRatings": ["allStars"],
             "includeGdprSensitive": False,
-            "reviewsUseProductVariantFilter": False,
             "scrapeProductDetails": True,
-            "reviewsAlwaysSaveCategoryData": False,
+            "reviewsUseProductVariantFilter": False,
             "deduplicateRedirectedAsins": True
         }
     
-    def _debug_raw_data(self, items: List[Dict]):
-        """Debug function to see what data Apify is returning."""
-        print(f"  🔍 DEBUG: Analyzing {len(items)} raw items from Apify")
-        
-        if not items:
-            print("  ❌ DEBUG: No items returned from Apify")
-            return
+    def _transform_review(self, review_data: Dict) -> Dict:
+        """Transform Apify review data to our format"""
+        try:
+            # Extract rating value
+            rating_str = review_data.get("reviewRating", "0")
+            rating = float(rating_str.split()[0] if isinstance(rating_str, str) else rating_str)
             
-        # Print first item structure for debugging
-        first_item = items[0]
-        print(f"  📋 DEBUG: First item keys: {list(first_item.keys())}")
-        
-        # Check if there's review data in different possible locations
-        if 'review' in first_item:
-            review_data = first_item.get('review', {})
-            print(f"  📋 DEBUG: Review keys: {list(review_data.keys())}")
-            if review_data:
-                print(f"  📋 DEBUG: Sample review text: {review_data.get('text', 'No text')[:100]}...")
-        
-        # Print all keys to see what's available
-        all_keys = set()
-        for item in items:
-            all_keys.update(item.keys())
-        print(f"  📋 DEBUG: All keys in items: {all_keys}")
-    
-    def _transform_junglee_reviews(self, items: List[Dict]) -> List[Dict]:
-        """Transform junglee actor results to standard review format."""
-        reviews = []
-        
-        print(f"  🔍 Transforming {len(items)} raw items...")
-        
-        # DEBUG: Show what we're working with
-        self._debug_raw_data(items)
-        
-        for i, item in enumerate(items):
-            print(f"  🔍 Processing item {i+1}")
-            
-            # Try different possible review data locations
-            review_data = None
-            
-            # Option 1: Direct review object (junglee format)
-            if 'review' in item and isinstance(item['review'], dict):
-                review_data = item['review']
-                print(f"    ✅ Found review in 'review' key")
-                
-            # Option 2: Item itself might be a review
-            elif any(key in item for key in ['reviewText', 'reviewTitle', 'rating', 'reviewId']):
-                review_data = item
-                print(f"    ✅ Found review data in item itself")
-                
-            # Option 3: Check for nested structures
-            elif 'data' in item and isinstance(item['data'], dict):
-                if 'review' in item['data']:
-                    review_data = item['data']['review']
-                    print(f"    ✅ Found review in 'data.review'")
-                    
-            # Option 4: Check for reviews array
-            elif 'reviews' in item and isinstance(item['reviews'], list):
-                if item['reviews']:
-                    review_data = item['reviews'][0]
-                    print(f"    ✅ Found review in 'reviews' array")
-            
-            if not review_data:
-                print(f"    ❌ No review data found in item {i+1}")
-                print(f"    📋 Available keys: {list(item.keys())}")
-                continue
-            
-            # Extract review information - USE FIELD NAMES THAT ANALYZER EXPECTS
+            # Parse date
+            date_str = review_data.get("reviewDate", "")
             try:
-                # Get the text content from various possible fields
-                review_text = (review_data.get("text") or 
-                             review_data.get("reviewText") or 
-                             review_data.get("content") or 
-                             review_data.get("body") or 
-                             "")
-                
-                # Get the title from various possible fields
-                review_title = (review_data.get("title") or 
-                              review_data.get("reviewTitle") or 
-                              review_data.get("summary") or 
-                              "")
-                
-                # Create review with FIELD NAMES THAT MATCH ANALYZER EXPECTATIONS
-                review = {
-                    # Required by analyzer
-                    "review_text": review_text,  # ANALYZER EXPECTS THIS NAME
-                    "rating": review_data.get("rating") or 
-                             review_data.get("starRating") or 
-                             review_data.get("stars") or 
-                             0,
-                    "review_date": review_data.get("date") or 
-                                 review_data.get("reviewDate") or 
-                                 review_data.get("timestamp") or 
-                                 "",
-                    
-                    # Additional fields for analyzer insights
-                    "verified_purchase": review_data.get("verified") or 
-                                        review_data.get("verifiedPurchase") or 
-                                        False,
-                    
-                    # Original fields for reference
-                    "id": review_data.get("reviewId") or 
-                          review_data.get("id") or 
-                          f"review_{i}_{hash(str(review_data))}",
-                    "title": review_title,
-                    "text": review_text,  # Keep original field for compatibility
-                    "author": review_data.get("author") or 
-                             review_data.get("reviewer") or 
-                             review_data.get("user") or 
-                             "",
-                    "helpful_votes": review_data.get("helpfulVotes") or 
-                                    review_data.get("helpful") or 
-                                    review_data.get("upvotes") or 
-                                    0,
-                    "country": item.get("country") or 
-                              review_data.get("country") or 
-                              "",
-                    "product_asin": item.get("asin") or 
-                                   review_data.get("asin") or 
-                                   "",
-                    "source": "apify"
-                }
-                
-                # Clean up the data
-                review["review_text"] = str(review["review_text"]).strip() if review["review_text"] else ""
-                review["title"] = str(review["title"]).strip() if review["title"] else ""
-                
-                # Ensure rating is numeric
-                try:
-                    review["rating"] = float(review["rating"])
-                except (ValueError, TypeError):
-                    review["rating"] = 0
-                
-                # Only add if we have basic review data
-                has_content = bool(review["review_text"] or review["title"])
-                has_rating = bool(review["rating"])
-                
-                if has_content or has_rating:
-                    print(f"    ✅ Added review: {review['rating']}⭐ - {review['review_text'][:50]}...")
-                    reviews.append(review)
-                else:
-                    print(f"    ⚠️ Skipped - no content or rating")
-                    
-            except Exception as e:
-                print(f"    ❌ Error transforming review {i+1}: {e}")
-                print(f"    📋 Problematic data: {review_data}")
-                continue
-        
-        print(f"  ✅ Successfully transformed {len(reviews)} reviews")
-        return reviews
-    
-    def _wait_for_run_completion(self, run_id: str, timeout_seconds: int = 300) -> Dict:
-        """Wait for Apify run to complete with polling."""
-        print(f"  ⏳ Waiting for run completion...")
-        
-        start_time = time.time()
-        run_client = self.client.run(run_id)
-        
-        while time.time() - start_time < timeout_seconds:
-            run_info = run_client.get()
-            status = run_info.get('status')
+                if "on" in date_str:
+                    date_str = date_str.split("on")[-1].strip()
+                review_date = datetime.strptime(date_str, "%B %d, %Y").isoformat()
+            except:
+                review_date = datetime.now().isoformat()
             
-            if status in ['SUCCEEDED', 'FAILED', 'TIMED_OUT', 'ABORTED']:
+            return {
+                "id": review_data.get("id", ""),
+                "title": review_data.get("reviewTitle", ""),
+                "text": review_data.get("reviewDescription", ""),
+                "rating": rating,
+                "author": review_data.get("reviewAuthor", "Anonymous"),
+                "date": review_date,
+                "verified": review_data.get("isVerified", False),
+                "helpful_count": review_data.get("helpfulCount", 0),
+                "images": review_data.get("reviewImages", []),
+                "variant": review_data.get("variant", ""),
+                "country": review_data.get("country", ""),
+                "source": "apify"
+            }
+        except Exception as e:
+            print(f"⚠️ Error transforming review: {e}")
+            return None
+    
+    def _wait_for_run(self, run_id: str) -> Dict:
+        """Wait for Apify actor run to complete"""
+        print(f"  ⏳ Waiting for Apify run to complete...")
+        
+        run_client = self.client.run(run_id)
+        start_time = time.time()
+        
+        while time.time() - start_time < self.timeout:
+            run_info = run_client.get()
+            status = run_info.get("status")
+            
+            if status in ["SUCCEEDED", "FAILED", "TIMED_OUT", "ABORTED"]:
                 return run_info
             
-            # Show progress every 10 seconds
+            # Show progress
             elapsed = int(time.time() - start_time)
             if elapsed % 10 == 0:
-                print(f"  🔄 Run status: {status} (elapsed: {elapsed}s)")
+                print(f"  🔄 Status: {status} ({elapsed}s elapsed)")
             
-            time.sleep(5)  # Check every 5 seconds
+            time.sleep(5)
         
-        # Timeout reached
-        return {'status': 'TIMED_OUT', 'errorMessage': 'Run timeout reached'}
+        return {"status": "TIMED_OUT", "error": "Timeout waiting for results"}
     
-    def fetch_reviews(self, asin: str, max_reviews: int = 5, country: str = "US") -> Dict[str, Any]:
+    def fetch_reviews(self, asin: str, max_reviews: int = 50, country: str = "US") -> Dict[str, Any]:
         """
-        Fetch Amazon reviews using Apify actors.
-        MAX 5 REVIEWS ONLY.
+        Fetch reviews from Amazon using Apify
+        
+        Args:
+            asin: Amazon product ASIN
+            max_reviews: Maximum number of reviews to fetch
+            country: Country code for Amazon marketplace
+        
+        Returns:
+            Dict containing review data and metadata
         """
-        print(f"🔍 Apify: Fetching MAX 5 reviews for ASIN {asin} from Amazon {country}")
-        
-        # Enforce maximum 5 reviews
-        actual_max_reviews = min(max_reviews, 5)
-        if max_reviews > 5:
-            print(f"⚠️  Limiting to 5 reviews (requested: {max_reviews})")
-        
-        # Test token validity first
-        try:
-            user = self.client.user().get()
-            print(f"✅ Apify token valid - User: {user.get('username')}")
-        except Exception as e:
-            error_msg = f"Apify token invalid: {str(e)}"
-            print(f"❌ {error_msg}")
+        if not self.client:
             return {
                 "success": False,
-                "error": error_msg,
-                "error_type": "invalid_token"
+                "error": "Apify client not initialized",
+                "reviews": [],
+                "total_reviews": 0
             }
         
-        for actor_id in self.actors_to_try:
-            try:
-                print(f"  🚀 Using actor: {actor_id}")
-                
-                run_input = self._get_junglee_actor_input(asin, actual_max_reviews, country)
-                
-                print(f"  📝 Requesting {actual_max_reviews} reviews from: {run_input['productUrls'][0]['url']}")
-                
-                # Run the actor
-                run = self.client.actor(actor_id).call(run_input=run_input)
-                run_id = run['id']
-                print(f"  ✅ Run started: {run_id}")
-                
-                # Wait for completion
-                run_info = self._wait_for_run_completion(run_id)
-                
-                if run_info['status'] == 'SUCCEEDED':
-                    print(f"  🎉 Scraping completed successfully!")
-                    
-                    # Get results
-                    dataset_client = self.client.dataset(run_info['defaultDatasetId'])
-                    items = dataset_client.list_items().items
-                    
-                    print(f"  📊 Retrieved {len(items)} raw items")
-                    
-                    # Save raw data for debugging
-                    if items:
-                        with open(f'debug_apify_raw_{asin}_{country}.json', 'w', encoding='utf-8') as f:
-                            json.dump(items, f, indent=2, ensure_ascii=False)
-                        print(f"  💾 Saved raw data to: debug_apify_raw_{asin}_{country}.json")
-                    
-                    reviews = self._transform_junglee_reviews(items)
-                    print(f"  ✅ Found {len(reviews)} reviews")
-                    
-                    if reviews:
-                        # Extract product info
-                        product_info = {}
-                        if items:
-                            first_item = items[0]
-                            # Try to get product info from different locations
-                            if 'product' in first_item and isinstance(first_item['product'], dict):
-                                product_info = {
-                                    "title": first_item['product'].get("title", ""),
-                                    "asin": first_item['product'].get("asin", asin),
-                                    "rating": first_item['product'].get("rating"),
-                                    "total_reviews": first_item['product'].get("totalReviews"),
-                                    "price": first_item['product'].get("price")
-                                }
-                            else:
-                                # Fallback: get from item itself
-                                product_info = {
-                                    "title": first_item.get("productTitle", ""),
-                                    "asin": first_item.get("asin", asin),
-                                    "rating": first_item.get("productRating"),
-                                    "total_reviews": first_item.get("totalReviews"),
-                                }
-                        
-                        return {
-                            "success": True,
-                            "reviews": reviews[:5],  # Ensure max 5 reviews
-                            "total_reviews": min(len(reviews), 5),
-                            "asin": asin,
-                            "country": country,
-                            "api_source": "apify",
-                            "max_reviews_limit": 5,
-                            "product_info": product_info if product_info else None,
-                            "debug": {
-                                "raw_items_count": len(items),
-                                "transformed_reviews_count": len(reviews)
-                            }
-                        }
-                    else:
-                        print(f"  ⚠️ No reviews found after transformation")
-                        print(f"  💡 Check debug_apify_raw_{asin}_{country}.json for raw data")
-                        return {
-                            "success": False,
-                            "error": "No reviews found in the scraped data",
-                            "error_type": "no_reviews_found",
-                            "asin": asin,
-                            "country": country,
-                            "debug_info": f"Raw items: {len(items)}, but no reviews extracted",
-                            "suggestion": "Check the debug file to see what data Apify returned"
-                        }
-                        
-                else:
-                    error_message = run_info.get('errorMessage', 'Unknown error')
-                    print(f"  ❌ Failed: {error_message}")
-                    
-                    return {
-                        "success": False,
-                        "error": f"Scraping failed: {error_message}",
-                        "error_type": "scraping_failed",
-                        "asin": asin
-                    }
-                    
-            except Exception as e:
-                print(f"  ❌ Exception: {str(e)}")
+        try:
+            print(f"\n📡 Fetching reviews from Apify for ASIN: {asin}")
+            print(f"   Country: {country}, Max: {max_reviews}")
+            
+            # Prepare actor input
+            actor_input = self._prepare_actor_input(asin, max_reviews, country)
+            
+            # Start the actor
+            print(f"  🚀 Starting Apify actor: {self.actor_id}")
+            run = self.client.actor(self.actor_id).call(
+                run_input=actor_input,
+                wait_secs=0  # Don't wait, we'll poll manually
+            )
+            
+            # Wait for completion
+            run_info = self._wait_for_run(run["id"])
+            
+            if run_info.get("status") != "SUCCEEDED":
+                error_msg = run_info.get("error", {}).get("message", "Unknown error")
+                print(f"  ❌ Apify run failed: {error_msg}")
                 return {
                     "success": False,
-                    "error": f"Apify error: {str(e)}",
-                    "error_type": "exception",
-                    "asin": asin
+                    "error": f"Apify run failed: {error_msg}",
+                    "reviews": [],
+                    "total_reviews": 0
                 }
+            
+            # Get results from dataset
+            print("  📊 Fetching results from dataset...")
+            dataset_client = self.client.dataset(run["defaultDatasetId"])
+            items = list(dataset_client.iterate_items())
+            
+            if not items:
+                print("  ⚠️ No data returned from Apify")
+                return {
+                    "success": False,
+                    "error": "No data returned from Apify",
+                    "reviews": [],
+                    "total_reviews": 0
+                }
+            
+            # Process results
+            all_reviews = []
+            product_info = {}
+            
+            for item in items:
+                # Extract product info
+                if not product_info and "productTitle" in item:
+                    product_info = {
+                        "title": item.get("productTitle", ""),
+                        "brand": item.get("brand", ""),
+                        "price": item.get("price", ""),
+                        "image": item.get("thumbnailImage", ""),
+                        "rating": item.get("averageRating", 0),
+                        "total_reviews": item.get("totalReviews", 0),
+                        "asin": item.get("asin", asin)
+                    }
+                
+                # Extract reviews
+                reviews_in_item = item.get("reviews", [])
+                for review_data in reviews_in_item:
+                    transformed = self._transform_review(review_data)
+                    if transformed:
+                        all_reviews.append(transformed)
+            
+            # Calculate statistics
+            if all_reviews:
+                ratings = [r["rating"] for r in all_reviews]
+                rating_distribution = {
+                    "5": len([r for r in ratings if r >= 4.5]),
+                    "4": len([r for r in ratings if 3.5 <= r < 4.5]),
+                    "3": len([r for r in ratings if 2.5 <= r < 3.5]),
+                    "2": len([r for r in ratings if 1.5 <= r < 2.5]),
+                    "1": len([r for r in ratings if r < 1.5])
+                }
+                average_rating = sum(ratings) / len(ratings) if ratings else 0
+            else:
+                rating_distribution = {"5": 0, "4": 0, "3": 0, "2": 0, "1": 0}
+                average_rating = 0
+            
+            print(f"  ✅ Successfully fetched {len(all_reviews)} reviews")
+            
+            return {
+                "success": True,
+                "asin": asin,
+                "country": country,
+                "product_info": product_info,
+                "reviews": all_reviews[:max_reviews],  # Limit to requested amount
+                "total_reviews": len(all_reviews),
+                "average_rating": round(average_rating, 2),
+                "rating_distribution": rating_distribution,
+                "metadata": {
+                    "source": "apify",
+                    "actor": self.actor_id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "run_id": run["id"]
+                }
+            }
+            
+        except Exception as e:
+            print(f"  ❌ Apify error: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "reviews": [],
+                "total_reviews": 0
+            }
+    
+    def fetch_multi_country(self, asin: str, max_reviews: int = 50, 
+                           countries: List[str] = None) -> Dict[str, Any]:
+        """
+        Fetch reviews from multiple countries and combine results
+        
+        Args:
+            asin: Product ASIN
+            max_reviews: Max reviews per country
+            countries: List of country codes (default: ["US", "UK", "DE", "CA"])
+        
+        Returns:
+            Combined review data from all countries
+        """
+        if not countries:
+            countries = ["US", "UK", "DE", "CA"]
+        
+        print(f"\n🌍 Multi-country fetch for ASIN: {asin}")
+        print(f"   Countries: {', '.join(countries)}")
+        
+        all_reviews = []
+        successful_countries = []
+        failed_countries = []
+        product_info = {}
+        
+        for country in countries:
+            print(f"\n  🔍 Trying {country}...")
+            result = self.fetch_reviews(asin, max_reviews, country)
+            
+            if result.get("success") and result.get("reviews"):
+                # Add country tag to each review
+                for review in result["reviews"]:
+                    review["country"] = country
+                
+                all_reviews.extend(result["reviews"])
+                successful_countries.append(country)
+                
+                # Use first successful product info
+                if not product_info and result.get("product_info"):
+                    product_info = result["product_info"]
+                
+                print(f"  ✅ {country}: {len(result['reviews'])} reviews")
+            else:
+                failed_countries.append(country)
+                print(f"  ❌ {country}: {result.get('error', 'No data')}")
+        
+        # Calculate combined statistics
+        if all_reviews:
+            ratings = [r["rating"] for r in all_reviews]
+            rating_distribution = {
+                "5": len([r for r in ratings if r >= 4.5]),
+                "4": len([r for r in ratings if 3.5 <= r < 4.5]),
+                "3": len([r for r in ratings if 2.5 <= r < 3.5]),
+                "2": len([r for r in ratings if 1.5 <= r < 2.5]),
+                "1": len([r for r in ratings if r < 1.5])
+            }
+            average_rating = sum(ratings) / len(ratings) if ratings else 0
+        else:
+            rating_distribution = {"5": 0, "4": 0, "3": 0, "2": 0, "1": 0}
+            average_rating = 0
+        
+        print(f"\n✅ Multi-country fetch complete:")
+        print(f"   Successful: {', '.join(successful_countries) if successful_countries else 'None'}")
+        print(f"   Failed: {', '.join(failed_countries) if failed_countries else 'None'}")
+        print(f"   Total reviews: {len(all_reviews)}")
         
         return {
-            "success": False,
-            "error": "Apify service unavailable",
-            "error_type": "service_unavailable"
+            "success": len(all_reviews) > 0,
+            "asin": asin,
+            "countries_searched": countries,
+            "successful_countries": successful_countries,
+            "failed_countries": failed_countries,
+            "product_info": product_info,
+            "reviews": all_reviews,
+            "total_reviews": len(all_reviews),
+            "average_rating": round(average_rating, 2),
+            "rating_distribution": rating_distribution,
+            "metadata": {
+                "source": "apify_multi_country",
+                "timestamp": datetime.utcnow().isoformat()
+            }
         }
 
 

@@ -1,9 +1,10 @@
 """
-Application configuration with environment variables.
+Application Configuration
+Central configuration management with environment variables
 """
 
 import os
-from typing import List
+from typing import List, Optional
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -11,160 +12,199 @@ load_dotenv()
 
 
 class Settings:
-    """Application settings loaded from environment variables."""
+    """Application settings with environment variable management"""
     
-    # Application
+    # ============= APPLICATION =============
     APP_NAME: str = os.getenv("APP_NAME", "Amazon Review Intelligence")
-    APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
+    APP_VERSION: str = os.getenv("APP_VERSION", "2.0.0")
     DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+
     
-    # Server
+    # ============= SERVER =============
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
+    WORKERS: int = int(os.getenv("WORKERS", "4"))
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     
-    # CORS
+    # ============= CORS =============
     ALLOWED_ORIGINS: List[str] = os.getenv(
         "ALLOWED_ORIGINS",
-        "https://amazon-review-intelligence.vercel.app/,http://localhost:3000,http://127.0.0.1:3000"
+        "http://localhost:3000,http://127.0.0.1:3000,https://amazon-review-intelligence.vercel.app"
     ).split(",")
+    ALLOW_CREDENTIALS: bool = os.getenv("ALLOW_CREDENTIALS", "true").lower() == "true"
+    ALLOW_METHODS: str = os.getenv("ALLOW_METHODS", "*")
+    ALLOW_HEADERS: str = os.getenv("ALLOW_HEADERS", "*")
     
-    # Data Source Configuration
-    # Options: "mock", "apify", "real"
-    DATA_SOURCE: str = os.getenv("DATA_SOURCE", "mock").lower()
+    # ============= DATA SOURCE =============
+    DATA_SOURCE: str = os.getenv("DATA_SOURCE", "apify").lower()  # apify, mock, hybrid
+    MAX_REVIEWS_PER_REQUEST: int = int(os.getenv("MAX_REVIEWS_PER_REQUEST", "100"))
+    USE_MOCK_FALLBACK: bool = os.getenv("USE_MOCK_FALLBACK", "true").lower() == "true"
     
-    # AI/NLP Features
-    ENABLE_AI: bool = os.getenv("ENABLE_AI", "true").lower() == "true"
-    ENABLE_EMOTIONS: bool = os.getenv("ENABLE_EMOTIONS", "true").lower() == "true"
-    
-    # Apify Settings
+    # ============= APIFY =============
     APIFY_API_TOKEN: str = os.getenv("APIFY_API_TOKEN", "")
     APIFY_ACTOR_ID: str = os.getenv("APIFY_ACTOR_ID", "junglee/amazon-reviews-scraper")
-    MAX_REVIEWS_PER_REQUEST: int = int(os.getenv("MAX_REVIEWS_PER_REQUEST", "100"))
+    APIFY_TIMEOUT_SECONDS: int = int(os.getenv("APIFY_TIMEOUT_SECONDS", "300"))
     
-    # OpenAI Settings (Optional)
+    # ============= AI/NLP =============
+    ENABLE_AI: bool = os.getenv("ENABLE_AI", "true").lower() == "true"
+    ENABLE_EMOTIONS: bool = os.getenv("ENABLE_EMOTIONS", "true").lower() == "true"
+    ENABLE_THEME_EXTRACTION: bool = os.getenv("ENABLE_THEME_EXTRACTION", "true").lower() == "true"
+    ENABLE_KEYWORD_CLUSTERING: bool = os.getenv("ENABLE_KEYWORD_CLUSTERING", "true").lower() == "true"
+    ENABLE_INSIGHTS_GENERATION: bool = os.getenv("ENABLE_INSIGHTS_GENERATION", "true").lower() == "true"
+    
+    AI_PROVIDER: str = os.getenv("AI_PROVIDER", "free").lower()  # free, openai, huggingface, transformers, hybrid
+    
+    # ============= OPENAI (Optional) =============
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
     OPENAI_MAX_TOKENS: int = int(os.getenv("OPENAI_MAX_TOKENS", "500"))
+    OPENAI_TEMPERATURE: float = float(os.getenv("OPENAI_TEMPERATURE", "0.7"))
     
-    # Hugging Face Settings (Optional)
+    # ============= HUGGING FACE (Optional) =============
     HUGGINGFACE_API_KEY: str = os.getenv("HUGGINGFACE_API_KEY", "")
+    HUGGINGFACE_MODEL: str = os.getenv("HUGGINGFACE_MODEL", "distilbert-base-uncased-finetuned-sst-2-english")
     
-    # Database Settings
+    # ============= DATABASE =============
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+    USE_DATABASE: bool = os.getenv("USE_DATABASE", "false").lower() == "true"
     
-    # Redis Settings
+    # ============= REDIS CACHE =============
     REDIS_URL: str = os.getenv("REDIS_URL", "")
+    REDIS_TTL_SECONDS: int = int(os.getenv("REDIS_TTL_SECONDS", "3600"))
+    ENABLE_CACHE: bool = os.getenv("ENABLE_CACHE", "false").lower() == "true"
     
-    # Export Settings
-    EXPORT_FOLDER: str = os.getenv("EXPORT_FOLDER", "./exports")
-    MAX_EXPORT_SIZE_MB: int = int(os.getenv("MAX_EXPORT_SIZE_MB", "10"))
-    EXPORT_FORMAT_DEFAULT: str = os.getenv("EXPORT_FORMAT_DEFAULT", "csv")
-    
-    # Logging
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_FILE: str = os.getenv("LOG_FILE", "./logs/app.log")
-    LOG_MAX_SIZE_MB: int = int(os.getenv("LOG_MAX_SIZE_MB", "50"))
-    LOG_BACKUP_COUNT: int = int(os.getenv("LOG_BACKUP_COUNT", "3"))
-    
-    # Rate Limiting
-    RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
-    RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
-    RATE_LIMIT_PER_HOUR: int = int(os.getenv("RATE_LIMIT_PER_HOUR", "1000"))
-    
-    # Security
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "change-this-secret-key-in-production")
-    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "change-this-jwt-secret")
+    # ============= SECURITY =============
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-super-secret-key-change-this")
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+    JWT_EXPIRATION_HOURS: int = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
     
-    # Feature Flags
+    # ============= RATE LIMITING =============
+    RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
+    RATE_LIMIT_PERIOD: int = int(os.getenv("RATE_LIMIT_PERIOD", "60"))
+    
+    # ============= FEATURES =============
     ENABLE_EXPORT_PDF: bool = os.getenv("ENABLE_EXPORT_PDF", "true").lower() == "true"
-    ENABLE_EXPORT_CSV: bool = os.getenv("ENABLE_EXPORT_CSV", "true").lower() == "true"
     ENABLE_EXPORT_EXCEL: bool = os.getenv("ENABLE_EXPORT_EXCEL", "true").lower() == "true"
-    ENABLE_INSIGHTS_GENERATION: bool = os.getenv("ENABLE_INSIGHTS_GENERATION", "true").lower() == "true"
-    ENABLE_THEME_EXTRACTION: bool = os.getenv("ENABLE_THEME_EXTRACTION", "true").lower() == "true"
-    ENABLE_KEYWORD_CLUSTERING: bool = os.getenv("ENABLE_KEYWORD_CLUSTERING", "true").lower() == "true"
+    ENABLE_BUYER_GROWTH_TRACKING: bool = os.getenv("ENABLE_BUYER_GROWTH_TRACKING", "true").lower() == "true"
+    ENABLE_REAL_TIME_UPDATES: bool = os.getenv("ENABLE_REAL_TIME_UPDATES", "true").lower() == "true"
+    ENABLE_MULTI_COUNTRY_SEARCH: bool = os.getenv("ENABLE_MULTI_COUNTRY_SEARCH", "true").lower() == "true"
     
-    # Mock Data Settings
+    # ============= PERFORMANCE =============
+    MAX_CONCURRENT_REQUESTS: int = int(os.getenv("MAX_CONCURRENT_REQUESTS", "100"))
+    REQUEST_TIMEOUT_SECONDS: int = int(os.getenv("REQUEST_TIMEOUT_SECONDS", "300"))
+    BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "50"))
+    ENABLE_ASYNC_PROCESSING: bool = os.getenv("ENABLE_ASYNC_PROCESSING", "true").lower() == "true"
+    
+    # ============= MOCK DATA =============
     MOCK_DATA_MIN_REVIEWS: int = int(os.getenv("MOCK_DATA_MIN_REVIEWS", "10"))
     MOCK_DATA_MAX_REVIEWS: int = int(os.getenv("MOCK_DATA_MAX_REVIEWS", "100"))
     MOCK_DATA_DEFAULT_REVIEWS: int = int(os.getenv("MOCK_DATA_DEFAULT_REVIEWS", "50"))
+    MOCK_PRODUCT_VARIATIONS: bool = os.getenv("MOCK_PRODUCT_VARIATIONS", "true").lower() == "true"
     
-    # Monitoring
+    # ============= MONITORING =============
     SENTRY_DSN: str = os.getenv("SENTRY_DSN", "")
-    GA_TRACKING_ID: str = os.getenv("GA_TRACKING_ID", "")
+    SENTRY_ENVIRONMENT: str = os.getenv("SENTRY_ENVIRONMENT", "development")
     
-    # Email Settings
+    # ============= EMAIL (Optional) =============
     SMTP_HOST: str = os.getenv("SMTP_HOST", "")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USER: str = os.getenv("SMTP_USER", "")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "noreply@yourdomain.com")
+    ENABLE_EMAIL_NOTIFICATIONS: bool = os.getenv("ENABLE_EMAIL_NOTIFICATIONS", "false").lower() == "true"
     
-    # Cloud Storage
+    # ============= AWS S3 (Optional) =============
     AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "")
     AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
     AWS_S3_BUCKET_NAME: str = os.getenv("AWS_S3_BUCKET_NAME", "")
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
+    USE_S3_STORAGE: bool = os.getenv("USE_S3_STORAGE", "false").lower() == "true"
     
-    # Performance
-    WORKERS: int = int(os.getenv("WORKERS", "4"))
-    MAX_CONCURRENT_REQUESTS: int = int(os.getenv("MAX_CONCURRENT_REQUESTS", "100"))
-    REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "300"))
+    # ============= WEBHOOKS (Optional) =============
+    WEBHOOK_URL: str = os.getenv("WEBHOOK_URL", "")
+    WEBHOOK_SECRET: str = os.getenv("WEBHOOK_SECRET", "")
+    ENABLE_WEBHOOKS: bool = os.getenv("ENABLE_WEBHOOKS", "false").lower() == "true"
+    
+    # ============= HELPER METHODS =============
+    
+    def is_production(self) -> bool:
+        """Check if running in production"""
+        return self.ENVIRONMENT == "production"
+    
+    def is_development(self) -> bool:
+        """Check if running in development"""
+        return self.ENVIRONMENT == "development"
     
     def is_using_mock_data(self) -> bool:
-        """Check if application is using mock data."""
+        """Check if using mock data"""
         return self.DATA_SOURCE == "mock"
     
     def is_using_apify(self) -> bool:
-        """Check if application is using Apify API."""
+        """Check if using Apify"""
         return self.DATA_SOURCE == "apify" and bool(self.APIFY_API_TOKEN)
     
-    def has_openai_api(self) -> bool:
-        """Check if OpenAI API key is configured."""
+    def has_openai(self) -> bool:
+        """Check if OpenAI is configured"""
         return bool(self.OPENAI_API_KEY)
     
-    def has_huggingface_api(self) -> bool:
-        """Check if Hugging Face API key is configured."""
-        return bool(self.HUGGINGFACE_API_KEY)
+    def has_database(self) -> bool:
+        """Check if database is configured"""
+        return bool(self.DATABASE_URL) and self.USE_DATABASE
+    
+    def has_redis(self) -> bool:
+        """Check if Redis is configured"""
+        return bool(self.REDIS_URL) and self.ENABLE_CACHE
     
     def get_data_source_info(self) -> dict:
-        """Get information about current data source configuration."""
+        """Get data source configuration info"""
         return {
             "data_source": self.DATA_SOURCE,
             "using_mock": self.is_using_mock_data(),
             "apify_configured": bool(self.APIFY_API_TOKEN),
-            "openai_configured": self.has_openai_api(),
-            "huggingface_configured": self.has_huggingface_api(),
+            "openai_configured": self.has_openai(),
             "ai_enabled": self.ENABLE_AI,
-            "emotions_enabled": self.ENABLE_EMOTIONS
+            "emotions_enabled": self.ENABLE_EMOTIONS,
+            "database_configured": self.has_database(),
+            "cache_configured": self.has_redis()
         }
+    
+    def validate(self):
+        """Validate configuration and print warnings"""
+        warnings = []
+        
+        # Check data source
+        if self.DATA_SOURCE == "apify" and not self.APIFY_API_TOKEN:
+            warnings.append("DATA_SOURCE is 'apify' but APIFY_API_TOKEN is not set")
+            self.DATA_SOURCE = "mock"  # Fallback to mock
+        
+        # Check AI provider
+        if self.AI_PROVIDER == "openai" and not self.OPENAI_API_KEY:
+            warnings.append("AI_PROVIDER is 'openai' but OPENAI_API_KEY is not set")
+            self.AI_PROVIDER = "free"  # Fallback to free
+        
+        # Check security
+        if self.is_production() and self.SECRET_KEY == "your-super-secret-key-change-this":
+            warnings.append("⚠️ CRITICAL: Using default SECRET_KEY in production!")
+        
+        # Print warnings
+        if warnings:
+            print("=" * 60)
+            print("⚠️ Configuration Warnings:")
+            for warning in warnings:
+                print(f"  - {warning}")
+            print("=" * 60)
+        
+        return len(warnings) == 0
 
 
-# Singleton instance
+    # Existing settings attributes ...
+    
+    EXPORT_FOLDER: str = os.getenv("EXPORT_FOLDER", "exports")
+
+
+# Create singleton instance
 settings = Settings()
 
-
-# Validation on startup
-def validate_settings():
-    """Validate settings and print warnings."""
-    
-    if settings.DATA_SOURCE == "apify" and not settings.APIFY_API_TOKEN:
-        print("⚠️  WARNING: DATA_SOURCE is set to 'apify' but APIFY_API_TOKEN is not configured!")
-        print("   Falling back to mock data. Set APIFY_API_TOKEN in .env to use real data.")
-        settings.DATA_SOURCE = "mock"
-    
-    if settings.DEBUG:
-        print(f"🔧 DEBUG MODE: Enabled")
-    
-    if settings.is_using_mock_data():
-        print(f"📊 DATA SOURCE: Mock Data (no API costs)")
-    else:
-        print(f"📊 DATA SOURCE: {settings.DATA_SOURCE.upper()}")
-    
-    if not settings.ENABLE_AI:
-        print(f"⚠️  AI/NLP features are disabled")
-
-
-# Run validation
-validate_settings()
+# Validate on import
+settings.validate()
