@@ -1,19 +1,20 @@
 /**
  * API Client for Amazon Review Intelligence
- * Updated with proper backend endpoints and review limits
+ * Handles all communication with the FastAPI backend
  */
 
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios from 'axios';
 
-// API Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const API_TIMEOUT = 60000; // 60 seconds for analysis requests
-const MAX_REVIEWS_LIMIT = 100; // Enforce maximum to protect free tier
+// Get API URL from environment or use default
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-// Create axios instance
-const apiClient: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: API_TIMEOUT,
+// Maximum review limit (enforced by backend)
+export const MAX_REVIEWS_LIMIT = 100;
+
+// Configure axios instance
+export const apiClient = axios.create({
+  baseURL: API_URL,
+  timeout: 60000, // 60 second timeout
   headers: {
     'Content-Type': 'application/json',
   },
@@ -22,66 +23,35 @@ const apiClient: AxiosInstance = axios.create({
 // Request interceptor for logging
 apiClient.interceptors.request.use(
   (config) => {
-    console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
-    if (config.data) {
-      console.log('📦 Request payload:', config.data);
-    }
+    console.log(`🔵 API Request: ${config.method?.toUpperCase()} ${config.url}`, config.data);
     return config;
   },
   (error) => {
-    console.error('❌ Request Error:', error);
+    console.error('🔴 Request error:', error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor for error handling
+// Response interceptor for logging and error handling
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`✅ API Response: ${response.config.url} - Status: ${response.status}`);
+    console.log(`🟢 API Response: ${response.config.url}`, response.data);
     return response;
   },
-  (error: AxiosError) => {
-    console.error('❌ Response Error:', error);
-    
-    if (error.code === 'ECONNABORTED') {
-      throw {
-        success: false,
-        error: 'Request timeout. Please try again with fewer reviews.',
-        error_type: 'timeout_error',
-      };
-    }
-    
-    if (error.response) {
-      const errorData = error.response.data as any;
-      throw {
-        success: false,
-        error: errorData?.error || errorData?.detail || 'An error occurred',
-        error_type: errorData?.error_type || 'api_error',
-        status: error.response.status,
-        data: errorData, // Include full error data for debugging
-      };
-    } else if (error.request) {
-      throw {
-        success: false,
-        error: 'Cannot reach server. Please check your connection.',
-        error_type: 'network_error',
-      };
-    } else {
-      throw {
-        success: false,
-        error: error.message || 'Request failed',
-        error_type: 'request_error',
-      };
-    }
+  (error) => {
+    console.error('🔴 Response error:', error.response?.data || error.message);
+    return Promise.reject(error);
   }
 );
 
 /**
  * Analyze Amazon product reviews
+ * CRITICAL FIX: Backend returns nested structure { success, data: {...}, metadata }
+ * We need to extract the actual analysis from response.data.data
  */
 export async function analyzeReviews(params: {
   asin: string;
-  max_reviews?: number;
+  max_reviews: number;
   enable_ai?: boolean;
   country?: string;
 }): Promise<any> {
@@ -100,16 +70,77 @@ export async function analyzeReviews(params: {
     
     const response = await apiClient.post('/api/v1/analyze', requestData);
     
-    console.log('📥 Analysis complete:', {
-      success: response.data.success,
-      reviews: response.data.data?.total_reviews || 0,
-      source: response.data.metadata?.data_source || 'unknown'
+    // CRITICAL FIX: Extract data from nested structure
+    const backendResponse = response.data;
+    
+    if (!backendResponse.success) {
+      throw new Error(backendResponse.error || 'Analysis failed');
+    }
+    
+    // The actual analysis data is in backendResponse.data
+    const analysisData = backendResponse.data || {};
+    const metadata = backendResponse.metadata || {};
+    
+    // Flatten the structure for frontend consumption
+    const flattenedResponse = {
+      success: true,
+      asin: metadata.asin || analysisData.asin || params.asin,
+      country: params.country || 'US',
+      
+      // Core metrics
+      total_reviews: analysisData.total_reviews || 0,
+      average_rating: analysisData.average_rating || 0,
+      
+      // Distributions
+      rating_distribution: analysisData.rating_distribution || {},
+      sentiment_distribution: analysisData.sentiment_distribution || null,
+      
+      // Product info
+      product_info: analysisData.product_info || null,
+      
+      // Reviews array
+      reviews: analysisData.reviews || [],
+      
+      // AI/NLP results
+      top_keywords: analysisData.top_keywords || [],
+      themes: analysisData.themes || [],
+      insights: analysisData.insights || [],
+      summary: analysisData.summary || '',
+      aggregate_metrics: analysisData.aggregate_metrics || null,
+      emotions: analysisData.emotions || null,
+      
+      // Metadata
+      metadata: {
+        ...metadata,
+        data_source: metadata.data_source || analysisData.data_source || 'unknown',
+        ai_enabled: metadata.ai_enabled || params.enable_ai || false,
+        timestamp: metadata.timestamp || new Date().toISOString(),
+      },
+      
+      // Legacy support
+      data_source: metadata.data_source || analysisData.data_source,
+      ai_provider: analysisData.ai_provider,
+    };
+    
+    console.log('📥 Analysis complete (flattened):', {
+      success: true,
+      reviews: flattenedResponse.total_reviews,
+      source: flattenedResponse.metadata.data_source,
+      hasKeywords: (flattenedResponse.top_keywords?.length || 0) > 0,
+      hasSentiment: !!flattenedResponse.sentiment_distribution,
     });
     
-    return response.data;
-  } catch (error) {
-    console.error('Analysis error:', error);
-    throw error;
+    return flattenedResponse;
+    
+  } catch (error: any) {
+    console.error('❌ Analysis error:', error.response?.data || error.message);
+    
+    // Return error in consistent format
+    throw {
+      success: false,
+      error: error.response?.data?.detail || error.response?.data?.error || error.message || 'Analysis failed',
+      error_type: error.response?.data?.error_type || 'unknown',
+    };
   }
 }
 
@@ -122,7 +153,6 @@ export async function fetchReviews(params: {
   country?: string;
 }): Promise<any> {
   try {
-    // Enforce maximum review limit
     const safeMaxReviews = Math.min(params.max_reviews || 50, MAX_REVIEWS_LIMIT);
     
     const response = await apiClient.post('/api/v1/reviews/fetch', {
@@ -131,8 +161,17 @@ export async function fetchReviews(params: {
       country: params.country || 'US',
     });
     
-    return response.data;
-  } catch (error) {
+    // Apply same flattening logic
+    const backendResponse = response.data;
+    const analysisData = backendResponse.data || backendResponse;
+    
+    return {
+      success: true,
+      ...analysisData,
+      metadata: backendResponse.metadata || {},
+    };
+    
+  } catch (error: any) {
     console.error('Fetch reviews error:', error);
     throw error;
   }
@@ -230,4 +269,4 @@ export function isUsingMockData(response: any): boolean {
 }
 
 // Export the axios instance for custom requests
-export { apiClient, MAX_REVIEWS_LIMIT };
+export { apiClient, MAX_REVIEWS_LIMIT as default };
