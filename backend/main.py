@@ -312,41 +312,43 @@ async def fetch_apify_reviews(asin: str, max_reviews: int = 50, country: str = "
         product_info = {}
         
         for item in dataset_items:
-            # Extract product info
-            if "productTitle" in item:
+            # Get product info once
+            if not product_info and "productTitle" in item:
                 product_info = {
                     "title": item.get("productTitle", ""),
                     "brand": item.get("brand", ""),
                     "price": item.get("price", ""),
                     "image": item.get("thumbnailImage", ""),
                     "rating": item.get("averageRating", 0),
-                    "total_reviews": item.get("totalReviews", 0)
+                    "total_reviews": item.get("totalReviews", 0),
+                    "asin": item.get("asin", asin)
                 }
-            
-            # Extract reviews
-            for review_data in item.get("reviews", []):
+    
+                # ✅ FIX: Each item IS a review!
+            if "reviewTitle" in item or "reviewDescription" in item:
                 try:
-                    # Parse rating
-                    rating_str = review_data.get("reviewRating", "0")
+                    rating_str = item.get("reviewRating", "0")
                     if isinstance(rating_str, str) and "out of" in rating_str:
                         rating = float(rating_str.split()[0])
                     else:
                         rating = float(rating_str) if rating_str else 0
-                    
+            
                     review = {
-                        "id": review_data.get("id", ""),
-                        "title": review_data.get("reviewTitle", ""),
-                        "text": review_data.get("reviewDescription", ""),
+                        "id": item.get("id", ""),
+                        "title": item.get("reviewTitle", ""),
+                        "text": item.get("reviewDescription", ""),
                         "rating": rating,
-                        "author": review_data.get("reviewAuthor", "Anonymous"),
-                        "date": review_data.get("reviewDate", ""),
-                        "verified": review_data.get("isVerified", False),
-                        "helpful_count": review_data.get("helpfulCount", 0)
+                        "author": item.get("reviewAuthor", "Anonymous"),
+                        "date": item.get("reviewDate", ""),
+                        "verified": item.get("isVerified", False),
+                        "helpful_count": item.get("helpfulCount", 0)
                     }
-                    
+            
                     all_reviews.append(review)
+                    logger.info(f"✅ Review: {review['title'][:40]}...")
+            
                 except Exception as e:
-                    logger.error(f"Error processing review: {e}")
+                    logger.error(f"Error: {e}")
                     continue
         
         if not all_reviews:

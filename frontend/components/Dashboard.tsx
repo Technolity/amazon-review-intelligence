@@ -82,13 +82,13 @@ export default function Dashboard() {
         }
       );
 
-      if (response.data.success) {
-        setAnalysis(response.data);
-        toast({
-          title: enableAI ? '✅ AI Analysis Complete!' : '✅ Reviews Fetched!',
-          description: `Found ${response.data.total_reviews} reviews`,
-          duration: 4000,
-        });
+     if (response.data.success) {
+  setAnalysis(response.data.data); // ✅ Set the actual analysis data
+  toast({
+    title: enableAI ? '✅ AI Analysis Complete!' : '✅ Reviews Fetched!',
+    description: `Found ${response.data.data?.total_reviews || response.data.total_reviews || 0} reviews`, // ✅ Handle both cases
+    duration: 4000,
+  });
         
         // Scroll to top on mobile to show results
         if (isMobile) {
