@@ -267,6 +267,3 @@ export function isUsingMockData(response: any): boolean {
   return response?.metadata?.data_source === 'mock' || 
          response?.data_source === 'mock';
 }
-
-// Export the axios instance for custom requests
-export { apiClient, MAX_REVIEWS_LIMIT as default };
