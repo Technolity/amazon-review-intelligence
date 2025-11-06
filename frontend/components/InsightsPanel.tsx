@@ -71,8 +71,8 @@ export default function InsightsPanel({
   const sentimentDist = analysis.sentiment_distribution || { positive: 0, neutral: 0, negative: 0 };
   const themes = analysis.themes || [];
   const keywords = analysis.top_keywords || [];
-  const insights = analysis.insights?.insights || [];
-  const summary = analysis.insights?.summary || 'Analysis complete';
+  const insights = Array.isArray(analysis.insights) ? analysis.insights : (analysis.insights?.insights || []);
+  const summary = Array.isArray(analysis.insights) ? 'Analysis complete' : (analysis.insights?.summary || 'Analysis complete');
 
   // Calculate percentages
   const total = sentimentDist.positive + sentimentDist.neutral + sentimentDist.negative;
