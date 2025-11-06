@@ -8,7 +8,7 @@ import time
 import json
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-from apify_client import ApifyClient
+from apify_service import ApifyClient
 from app.core.config import settings
 
 

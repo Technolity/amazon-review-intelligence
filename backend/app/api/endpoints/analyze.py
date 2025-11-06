@@ -269,7 +269,24 @@ async def analyze_reviews(request: AnalysisRequest, background_tasks: Background
             reviews_data.extend(item.get("reviews", []))
         
         if not reviews_data:
-            raise HTTPException(status_code=404, detail="No reviews found for this ASIN")
+    # Safe default return for no reviews
+         processing_time = (datetime.now() - start_time).total_seconds()
+        response = AnalysisResponse(
+        success=True,
+        asin=request.asin,
+        total_reviews=0,
+        average_rating=0,
+        ai_enabled=request.enable_ai,
+        sentiment_distribution=None,
+        top_keywords=None,
+        themes=None,
+        reviews=[],
+        insights={"summary": "No reviews to analyze", "insights": []},
+        timestamp=datetime.now().isoformat(),
+        processing_time=round(processing_time, 2)
+        )
+        
+
         
         logger.info(f"Fetched {len(reviews_data)} reviews")
         
