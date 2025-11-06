@@ -4,6 +4,8 @@
 
 // Review types
 export interface Review {
+  verified_purchase: JSX.Element;
+  content: string;
   id: string;
   rating: number;
   title: string;
@@ -91,6 +93,7 @@ export interface AnalysisMetadata {
 
 // Main analysis result
 export interface AnalysisResult {
+  models_used: any;
   success: boolean;
   asin?: string;
   country?: string;

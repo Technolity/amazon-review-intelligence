@@ -40,8 +40,14 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
 
   const themes = analysis.themes || [];
   const keywords = analysis.top_keywords || [];
-  const insights = analysis.insights?.insights || [];
-  const summary = analysis.insights?.summary || '';
+  // Normalize analysis.insights which can be either Insights or string[]
+  const rawInsights = analysis.insights || [];
+  const insights = Array.isArray(rawInsights)
+    ? rawInsights
+    : (rawInsights.insights || []);
+  const summary = Array.isArray(rawInsights)
+    ? ''
+    : (rawInsights.summary || '');
   const reviews = analysis.reviews || [];
 
   // Share function
@@ -489,7 +495,7 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
                 {/* Positive Reviews */}
                 <TabsContent value="positive" className="space-y-4">
                   {reviews
-                    .filter(r => r.ai_sentiment === 'positive' || r.sentiment === 'positive' || r.rating >= 4)
+                    .filter(r => r.sentiment === 'positive' || r.sentiment === 'positive' || r.rating >= 4)
                     .slice(0, 3)
                     .map((review, index) => (
                       <div key={index} className="p-4 rounded-lg border bg-green-500/5">
@@ -534,7 +540,7 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
                 {/* Neutral Reviews */}
                 <TabsContent value="neutral" className="space-y-4">
                   {reviews
-                    .filter(r => r.ai_sentiment === 'neutral' || r.sentiment === 'neutral' || r.rating === 3)
+                    .filter(r => r.sentiment === 'neutral' || r.sentiment === 'neutral' || r.rating === 3)
                     .slice(0, 3)
                     .map((review, index) => (
                       <div key={index} className="p-4 rounded-lg border bg-yellow-500/5">
@@ -579,7 +585,7 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
                 {/* Negative Reviews */}
                 <TabsContent value="negative" className="space-y-4">
                   {reviews
-                    .filter(r => r.ai_sentiment === 'negative' || r.sentiment === 'negative' || r.rating <= 2)
+                    .filter(r => r.sentiment === 'negative' || r.sentiment === 'negative' || r.rating <= 2)
                     .slice(0, 3)
                     .map((review, index) => (
                       <div key={index} className="p-4 rounded-lg border bg-red-500/5">
