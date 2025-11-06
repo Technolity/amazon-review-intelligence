@@ -1,1 +1,40 @@
-﻿
+﻿# Core Framework
+fastapi
+uvicorn[standard]
+python-dotenv
+pydantic
+pydantic-settings
+starlette
+
+# Data Processing
+pandas
+numpy
+
+# NLP Libraries (Lightweight - No PyTorch/Transformers)
+nltk
+textblob
+vaderSentiment
+
+# Web Scraping
+apify-client
+beautifulsoup4
+lxml
+requests
+httpx
+
+# Document Export
+reportlab
+openpyxl
+XlsxWriter
+
+# Utilities
+python-multipart
+PyYAML
+python-dateutil
+pytz
+loguru
+
+# Development (optional)
+pytest
+pytest-asyncio
+black
