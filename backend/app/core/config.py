@@ -19,7 +19,6 @@ class Settings:
     APP_VERSION: str = os.getenv("APP_VERSION", "2.0.0")
     DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-
     
     # ============= SERVER =============
     HOST: str = os.getenv("HOST", "0.0.0.0")
@@ -196,11 +195,6 @@ class Settings:
             print("=" * 60)
         
         return len(warnings) == 0
-
-
-    # Existing settings attributes ...
-    
-    EXPORT_FOLDER: str = os.getenv("EXPORT_FOLDER", "exports")
 
 
 # Create singleton instance
