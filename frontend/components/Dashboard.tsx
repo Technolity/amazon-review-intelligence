@@ -8,10 +8,8 @@ import InsightsPanel from './InsightsPanel';
 import DetailedInsights from './DetailedInsights';
 import { useToast } from '@/hooks/use-toast';
 import type { AnalysisResult } from '@/types';
-import axios from 'axios';
+import { analyzeReviews, formatErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function Dashboard() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -22,8 +20,6 @@ export default function Dashboard() {
   const [showDetailedView, setShowDetailedView] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  
-  // NEW: Mobile-only quick search state (simplified - only ASIN needed)
   const [mobileAsin, setMobileAsin] = useState('');
   
   const { toast } = useToast();
@@ -32,7 +28,6 @@ export default function Dashboard() {
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
-      // Auto-collapse sidebar on tablets in portrait mode
       if (window.innerWidth < 1024 && window.innerWidth >= 768) {
         setSidebarCollapsed(true);
       }
@@ -44,7 +39,7 @@ export default function Dashboard() {
   }, []);
 
   /**
-   * Main analysis handler - includes mobile sidebar auto-hide
+   * Main analysis handler - FIXED with proper data extraction
    */
   const handleAnalyze = async (
     asin: string, 
@@ -57,61 +52,94 @@ export default function Dashboard() {
     setShowDetailedView(false);
     setAiEnabled(enableAI);
     
-    // AUTO-HIDE sidebar on mobile after search
+    // Auto-hide sidebar on mobile after search
     if (isMobile) {
       setSidebarMobileOpen(false);
     }
 
     try {
       toast({
-        title: enableAI ? '🧠 Starting AI Analysis' : '📋 Fetching Raw Reviews',
-        description: `Processing ${maxReviews} reviews for ASIN: ${asin}`,
+        title: enableAI ? '🧠 Starting AI Analysis' : '📋 Fetching Reviews',
+        description: `Processing up to ${maxReviews} reviews for ASIN: ${asin}`,
       });
 
-      const response = await axios.post(
-        `${API_URL}/api/v1/analyze`,
-        {
-          asin: asin,
-          max_reviews: maxReviews,
-          enable_ai: enableAI,
-          country: country,
-        },
-        {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 60000,
-        }
-      );
+      // Call the FIXED analyzeReviews function
+      const result = await analyzeReviews({
+        asin: asin,
+        max_reviews: maxReviews,
+        enable_ai: enableAI,
+        country: country,
+      });
 
-     if (response.data.success) {
-  setAnalysis(response.data.data); // ✅ Set the actual analysis data
-  toast({
-    title: enableAI ? '✅ AI Analysis Complete!' : '✅ Reviews Fetched!',
-    description: `Found ${response.data.data?.total_reviews || response.data.total_reviews || 0} reviews`, // ✅ Handle both cases
-    duration: 4000,
-  });
+      console.log('✅ Analysis result received:', {
+        success: result.success,
+        total_reviews: result.total_reviews,
+        has_reviews: (result.reviews?.length || 0) > 0,
+        data_source: result.metadata?.data_source,
+      });
+
+      if (result.success && result.total_reviews > 0) {
+        setAnalysis(result);
+        
+        const dataSource = result.metadata?.data_source || 'unknown';
+        const sourceEmoji = dataSource === 'apify' ? '🌐' : dataSource === 'mock' ? '🎭' : '❓';
+        
+        toast({
+          title: `✅ Analysis Complete! ${sourceEmoji}`,
+          description: `Found ${result.total_reviews} reviews (Source: ${dataSource.toUpperCase()})`,
+          duration: 4000,
+        });
         
         // Scroll to top on mobile to show results
         if (isMobile) {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
+      } else if (result.success && result.total_reviews === 0) {
+        toast({
+          title: '⚠️ No Reviews Found',
+          description: 'This product has no reviews available. Try a different ASIN.',
+          variant: 'destructive',
+          duration: 5000,
+        });
+        setAnalysis(null);
       } else {
-        throw new Error(response.data.error || 'Analysis failed');
+        throw new Error('Analysis returned no data');
       }
+      
     } catch (error: any) {
-      console.error('Analysis error:', error);
+      console.error('❌ Analysis failed:', error);
+      
+      const errorMessage = formatErrorMessage(error);
+      
       toast({
         title: '❌ Analysis Failed',
-        description: error.message || 'Could not analyze the product',
+        description: errorMessage,
         variant: 'destructive',
-        duration: 5000,
+        duration: 6000,
       });
+      
+      setAnalysis(null);
     } finally {
       setIsLoading(false);
     }
   };
 
   /**
-   * Export handler
+   * Reset handler
+   */
+  const handleReset = () => {
+    setAnalysis(null);
+    setCurrentAsin('');
+    setShowDetailedView(false);
+    setMobileAsin('');
+    toast({
+      title: '🔄 Dashboard Reset',
+      description: 'Ready for a new analysis',
+    });
+  };
+
+  /**
+   * Export handler (placeholder)
    */
   const handleExport = async (format: 'csv' | 'pdf') => {
     if (!currentAsin || !analysis) {
@@ -123,65 +151,25 @@ export default function Dashboard() {
       return;
     }
 
-    try {
-      const response = await axios.post(
-        `${API_URL}/api/v1/export`,
-        {
-          asin: currentAsin,
-          format: format,
-        },
-        {
-          responseType: format === 'pdf' ? 'blob' : 'text',
-        }
-      );
-
-      if (format === 'csv') {
-        const blob = new Blob([response.data], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `reviews_${currentAsin}_${Date.now()}.csv`;
-        a.click();
-        
-        toast({
-          title: '✅ Export Successful',
-          description: 'CSV file has been downloaded',
-        });
-      } else {
-        toast({
-          title: 'PDF Export',
-          description: 'PDF export coming soon. Use CSV for now.',
-          duration: 4000,
-        });
-      }
-    } catch (error: any) {
-      console.error('Export error:', error);
-      toast({
-        title: 'Export Failed',
-        description: error.message || 'Could not generate export file',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  /**
-   * Reset handler
-   */
-  const handleReset = () => {
-    setAnalysis(null);
-    setCurrentAsin('');
-    setShowDetailedView(false);
-    // NEW: Reset mobile search form
-    setMobileAsin('');
-    
     toast({
-      title: 'Reset Complete',
-      description: 'All filters and data have been cleared',
+      title: '📊 Export Feature',
+      description: `${format.toUpperCase()} export coming soon!`,
     });
   };
 
   /**
-   * Toggle sidebar - different behavior for mobile vs desktop
+   * Detailed view toggle
+   */
+  const handleShowDetails = () => {
+    setShowDetailedView(true);
+  };
+
+  const handleCloseDetails = () => {
+    setShowDetailedView(false);
+  };
+
+  /**
+   * Sidebar toggle handlers
    */
   const handleToggleSidebar = () => {
     if (isMobile) {
@@ -191,76 +179,52 @@ export default function Dashboard() {
     }
   };
 
-  /**
-   * Show detailed view
-   */
-  const handleShowDetails = () => {
-    if (analysis) {
-      setShowDetailedView(true);
-      if (isMobile) {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
+  const handleCloseMobileSidebar = () => {
+    if (isMobile) {
+      setSidebarMobileOpen(false);
     }
   };
 
-  /**
-   * Back to overview from detailed view
-   */
-  const handleBackToOverview = () => {
-    setShowDetailedView(false);
-  };
-
-  // If detailed view is active, show that instead
-  if (showDetailedView && analysis) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar
-          onExport={handleExport}
-          onToggleSidebar={handleToggleSidebar}
-          sidebarCollapsed={sidebarCollapsed}
-          isMobile={isMobile}
-        />
-        <DetailedInsights 
-          analysis={analysis} 
-          onBack={handleBackToOverview}
-        />
-      </div>
-    );
-  }
-
-  // Main Dashboard Layout - RESPONSIVE
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background">
       {/* Navbar */}
       <Navbar
-        onExport={handleExport}
         onToggleSidebar={handleToggleSidebar}
+        onExport={handleExport}
+        onReset={handleReset}
+        hasAnalysis={!!analysis}
         sidebarCollapsed={sidebarCollapsed}
+        sidebarMobileOpen={sidebarMobileOpen}
         isMobile={isMobile}
       />
 
-      {/* Main Content Area - Responsive Flex Layout */}
-      <div className="flex flex-col md:flex-row h-auto md:h-[calc(100vh-3.5rem)] overflow-hidden">
+      {/* Detailed View Modal/Overlay */}
+      {showDetailedView && analysis && (
+        <DetailedInsights
+          analysis={analysis}
+          onClose={handleCloseDetails}
+        />
+      )}
+
+      {/* Mobile Sidebar Overlay */}
+      {isMobile && sidebarMobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={handleCloseMobileSidebar}
+        />
+      )}
+
+      {/* Main Layout Container */}
+      <div className="flex-1 flex overflow-hidden">
         
-        {/* Mobile Sidebar Overlay */}
-        {isMobile && sidebarMobileOpen && (
-          <div 
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
-            onClick={() => setSidebarMobileOpen(false)}
-          />
-        )}
-        
-        {/* Sidebar Filters - Mobile Modal or Desktop Fixed */}
-        <div 
+        {/* Sidebar */}
+        <div
           className={cn(
-            // Mobile: Full-screen modal
-            "md:relative md:h-full",
             isMobile ? [
               "fixed inset-y-0 left-0 z-50 w-80 bg-background shadow-xl",
               "transform transition-transform duration-300 ease-in-out",
               sidebarMobileOpen ? "translate-x-0" : "-translate-x-full"
             ] : [
-              // Desktop: Collapsible sidebar
               "transition-all duration-300 ease-in-out border-r bg-background",
               sidebarCollapsed ? "w-16" : "w-80"
             ]
@@ -277,28 +241,26 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Main Content Wrapper - Vertical on Mobile */}
+        {/* Main Content Wrapper */}
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
           
-          {/* Graph/Chart Area - Full Width on Mobile */}
+          {/* Graph/Chart Area */}
           <div className="flex-1 overflow-auto bg-muted/30">
             
-            {/* NEW: Minimal Mobile Quick Search - Only visible when no analysis and not loading */}
+            {/* Mobile Quick Search - Only when no analysis */}
             {!analysis && !isLoading && (
               <div className="sm:hidden p-4 bg-background border-b">
-                <h2 className="text-sm font-semibold mb-3 text-foreground">Ready to analyze</h2>
+                <h2 className="text-sm font-semibold mb-3">Quick Analysis</h2>
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
                     const cleanAsin = mobileAsin.trim().toUpperCase();
                     if (cleanAsin.length === 10) {
-                      // Use default values: 50 reviews, AI enabled, US region
                       handleAnalyze(cleanAsin, 50, true, 'US');
                     }
                   }}
                   className="space-y-3"
                 >
-                  {/* ASIN input only */}
                   <div>
                     <input
                       type="text"
@@ -307,7 +269,7 @@ export default function Dashboard() {
                       value={mobileAsin}
                       onChange={(e) => setMobileAsin(e.target.value.toUpperCase())}
                       maxLength={10}
-                      className="w-full border rounded-md px-3 h-10 font-mono text-sm bg-background"
+                      className="w-full border rounded-md px-3 h-10 font-mono text-sm"
                       disabled={isLoading}
                     />
                     <p className="text-[10px] text-muted-foreground mt-1">
@@ -315,10 +277,9 @@ export default function Dashboard() {
                     </p>
                   </div>
 
-                  {/* Analyze button */}
                   <button
                     type="submit"
-                    className="w-full h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60"
                     disabled={isLoading || mobileAsin.length !== 10}
                   >
                     {isLoading ? 'Analyzing…' : 'Analyze Reviews'}
@@ -335,7 +296,7 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Insights Panel - Below Graphs on Mobile, Right Side on Desktop */}
+          {/* Insights Panel */}
           <div className={cn(
             "w-full lg:w-96 border-t lg:border-t-0 lg:border-l bg-background overflow-auto",
             "min-h-[400px] lg:min-h-0"
