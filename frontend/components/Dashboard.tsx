@@ -63,7 +63,7 @@ export default function Dashboard() {
         description: `Processing up to ${maxReviews} reviews for ASIN: ${asin}`,
       });
 
-      // Call the FIXED analyzeReviews function
+      // Call the FIXED analyzeReviews function from api.ts
       const result = await analyzeReviews({
         asin: asin,
         max_reviews: maxReviews,
@@ -125,21 +125,7 @@ export default function Dashboard() {
   };
 
   /**
-   * Reset handler
-   */
-  const handleReset = () => {
-    setAnalysis(null);
-    setCurrentAsin('');
-    setShowDetailedView(false);
-    setMobileAsin('');
-    toast({
-      title: '🔄 Dashboard Reset',
-      description: 'Ready for a new analysis',
-    });
-  };
-
-  /**
-   * Export handler (placeholder)
+   * Export handler
    */
   const handleExport = async (format: 'csv' | 'pdf') => {
     if (!currentAsin || !analysis) {
@@ -158,18 +144,22 @@ export default function Dashboard() {
   };
 
   /**
-   * Detailed view toggle
+   * Reset handler
    */
-  const handleShowDetails = () => {
-    setShowDetailedView(true);
-  };
-
-  const handleCloseDetails = () => {
+  const handleReset = () => {
+    setAnalysis(null);
+    setCurrentAsin('');
     setShowDetailedView(false);
+    setMobileAsin('');
+    
+    toast({
+      title: '🔄 Dashboard Reset',
+      description: 'Ready for a new analysis',
+    });
   };
 
   /**
-   * Sidebar toggle handlers
+   * Toggle sidebar
    */
   const handleToggleSidebar = () => {
     if (isMobile) {
@@ -179,47 +169,69 @@ export default function Dashboard() {
     }
   };
 
-  const handleCloseMobileSidebar = () => {
-    if (isMobile) {
-      setSidebarMobileOpen(false);
+  /**
+   * Show detailed view
+   */
+  const handleShowDetails = () => {
+    if (analysis) {
+      setShowDetailedView(true);
+      if (isMobile) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     }
   };
 
+  /**
+   * Back to overview
+   */
+  const handleBackToOverview = () => {
+    setShowDetailedView(false);
+  };
+
+  // Detailed view
+  if (showDetailedView && analysis) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar
+          onExport={handleExport}
+          onToggleSidebar={handleToggleSidebar}
+          sidebarCollapsed={sidebarCollapsed}
+          isMobile={isMobile}
+        />
+        <DetailedInsights 
+          analysis={analysis} 
+          onBack={handleBackToOverview}
+        />
+      </div>
+    );
+  }
+
+  // Main dashboard layout
   return (
-    <div className="flex flex-col h-screen bg-background">
-      {/* Navbar */}
+    <div className="min-h-screen bg-background">
+      {/* Navbar - Only pass props it accepts */}
       <Navbar
-        onToggleSidebar={handleToggleSidebar}
         onExport={handleExport}
-        onReset={handleReset}
-        hasAnalysis={!!analysis}
+        onToggleSidebar={handleToggleSidebar}
         sidebarCollapsed={sidebarCollapsed}
-        sidebarMobileOpen={sidebarMobileOpen}
         isMobile={isMobile}
       />
 
-      {/* Detailed View Modal/Overlay */}
-      {showDetailedView && analysis && (
-        <DetailedInsights
-          analysis={analysis}
-          onClose={handleCloseDetails}
-        />
-      )}
-
-      {/* Mobile Sidebar Overlay */}
-      {isMobile && sidebarMobileOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40"
-          onClick={handleCloseMobileSidebar}
-        />
-      )}
-
-      {/* Main Layout Container */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main content area */}
+      <div className="flex flex-col md:flex-row h-auto md:h-[calc(100vh-3.5rem)] overflow-hidden">
+        
+        {/* Mobile overlay */}
+        {isMobile && sidebarMobileOpen && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setSidebarMobileOpen(false)}
+          />
+        )}
         
         {/* Sidebar */}
-        <div
+        <div 
           className={cn(
+            "md:relative md:h-full",
             isMobile ? [
               "fixed inset-y-0 left-0 z-50 w-80 bg-background shadow-xl",
               "transform transition-transform duration-300 ease-in-out",
@@ -241,13 +253,13 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Main Content Wrapper */}
+        {/* Content wrapper */}
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
           
-          {/* Graph/Chart Area */}
+          {/* Graph area */}
           <div className="flex-1 overflow-auto bg-muted/30">
             
-            {/* Mobile Quick Search - Only when no analysis */}
+            {/* Mobile quick search */}
             {!analysis && !isLoading && (
               <div className="sm:hidden p-4 bg-background border-b">
                 <h2 className="text-sm font-semibold mb-3">Quick Analysis</h2>
@@ -296,7 +308,7 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Insights Panel */}
+          {/* Insights panel */}
           <div className={cn(
             "w-full lg:w-96 border-t lg:border-t-0 lg:border-l bg-background overflow-auto",
             "min-h-[400px] lg:min-h-0"
