@@ -127,6 +127,12 @@ class Settings:
     WEBHOOK_URL: str = os.getenv("WEBHOOK_URL", "")
     WEBHOOK_SECRET: str = os.getenv("WEBHOOK_SECRET", "")
     ENABLE_WEBHOOKS: bool = os.getenv("ENABLE_WEBHOOKS", "false").lower() == "true"
+
+     
+
+    # ============= EXPORT =============
+
+    EXPORT_FOLDER: str = os.getenv("EXPORT_FOLDER", "/tmp/exports")
     
     # ============= HELPER METHODS =============
     
