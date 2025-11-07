@@ -1,20 +1,23 @@
 /**
  * Type definitions for Amazon Review Intelligence
+ * FIXED VERSION - Added stars property to Review interface
  */
 
 // Review types
 export interface Review {
-  id: string;
-  rating: number;
-  title: string;
-  text: string;
+  id?: string;
+  rating?: number;
+  stars?: number; // ← ADDED: Backend uses both 'rating' and 'stars'
+  title?: string;
+  text?: string;
   content?: string; // Alias for text (backwards compatibility)
-  author: string;
-  date: string;
-  verified: boolean;
+  author?: string;
+  date?: string;
+  verified?: boolean;
   verified_purchase?: boolean; // Alias for verified
-  helpful_count: number;
+  helpful_count?: number;
   sentiment?: string;
+  sentiment_score?: number;
   sentiment_confidence?: number;
   polarity?: number;
   subjectivity?: number;
@@ -31,9 +34,9 @@ export interface Review {
 // Product information
 export interface ProductInfo {
   title: string;
-  brand: string;
-  price: string;
-  image: string;
+  brand?: string;
+  price?: string;
+  image?: string;
   rating?: number;
   total_reviews?: number;
   asin?: string;
@@ -75,6 +78,7 @@ export interface Keyword {
   word: string;
   frequency: number;
   weight?: number;
+  sentiment?: string;
 }
 
 // Theme data
@@ -84,6 +88,7 @@ export interface Theme {
   mentions: number;
   importance?: number;
   sentiment?: string;
+  avg_rating?: number;
 }
 
 // Insights
@@ -92,6 +97,13 @@ export interface Insights {
   recommendations?: string[];
   summary: string;
   confidence?: string;
+  metrics?: {
+    total_reviews: number;
+    positive_percentage: number;
+    negative_percentage: number;
+    neutral_percentage: number;
+    average_rating: number;
+  };
 }
 
 // Growth data point
@@ -141,6 +153,8 @@ export interface AnalysisResult {
   models_used?: any;
   error?: string;
   error_type?: string;
+  timestamp?: string;
+  processing_time?: number;
 }
 
 // API Request types
