@@ -548,7 +548,7 @@ export default function GraphArea({ analysis, isLoading, onViewDetails, aiEnable
 
         {/* Main Charts - Responsive Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 sm:space-y-4 md:space-y-6">
-          <TabsList className="grid w-full grid-cols-4 h-8 sm:h-9 md:h-10">
+          <TabsList className="grid w-full grid-cols-3 h-8 sm:h-9 md:h-10">
             <TabsTrigger value="overview" className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm px-1.5 sm:px-2 py-1.5 sm:py-2 md:py-2.5">
               <BarChart3 className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 mr-0 sm:mr-1 md:mr-2" />
               <span className="hidden sm:inline">Overview</span>
