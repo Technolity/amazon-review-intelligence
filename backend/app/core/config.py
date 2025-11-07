@@ -88,6 +88,9 @@ class Settings:
     ENABLE_BUYER_GROWTH_TRACKING: bool = os.getenv("ENABLE_BUYER_GROWTH_TRACKING", "true").lower() == "true"
     ENABLE_REAL_TIME_UPDATES: bool = os.getenv("ENABLE_REAL_TIME_UPDATES", "true").lower() == "true"
     ENABLE_MULTI_COUNTRY_SEARCH: bool = os.getenv("ENABLE_MULTI_COUNTRY_SEARCH", "true").lower() == "true"
+
+    # ============= EXPORT =============
+    EXPORT_FOLDER: str = os.getenv("EXPORT_FOLDER", "/tmp/exports")
     
     # ============= PERFORMANCE =============
     MAX_CONCURRENT_REQUESTS: int = int(os.getenv("MAX_CONCURRENT_REQUESTS", "100"))
