@@ -4,21 +4,28 @@
 
 // Review types
 export interface Review {
-  verified_purchase: JSX.Element;
-  content: string;
   id: string;
   rating: number;
   title: string;
   text: string;
+  content?: string; // Alias for text (backwards compatibility)
   author: string;
   date: string;
   verified: boolean;
+  verified_purchase?: boolean; // Alias for verified
   helpful_count: number;
   sentiment?: string;
   sentiment_confidence?: number;
   polarity?: number;
   subjectivity?: number;
   emotions?: Record<string, number>;
+  bot_score?: number;
+  is_bot_likely?: boolean;
+  bot_indicators?: string[];
+  images?: string[];
+  variant?: string;
+  country?: string;
+  source?: string;
 }
 
 // Product information
@@ -46,6 +53,21 @@ export interface RatingDistribution {
   '3_star'?: number;
   '2_star'?: number;
   '1_star'?: number;
+  '5'?: number; // Backwards compatibility
+  '4'?: number;
+  '3'?: number;
+  '2'?: number;
+  '1'?: number;
+}
+
+// Bot detection statistics
+export interface BotDetectionStats {
+  total_reviews: number;
+  genuine_count: number;
+  bot_count: number;
+  bot_percentage: number;
+  suspicious_count?: number;
+  filtered_count?: number;
 }
 
 // Keyword data
@@ -93,7 +115,6 @@ export interface AnalysisMetadata {
 
 // Main analysis result
 export interface AnalysisResult {
-  models_used: any;
   success: boolean;
   asin?: string;
   country?: string;
@@ -113,9 +134,11 @@ export interface AnalysisResult {
   themes?: Theme[];
   insights?: Insights | string[];
   summary?: string;
-  data_source?: 'apify' | 'mock';
+  data_source?: 'apify' | 'mock' | 'unknown';
   ai_provider?: string;
   metadata?: AnalysisMetadata;
+  bot_detection?: BotDetectionStats;
+  models_used?: any;
   error?: string;
   error_type?: string;
 }

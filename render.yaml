@@ -1,0 +1,77 @@
+services:
+  # Backend API Service
+  - type: web
+    name: amazon-review-intelligence-api
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2"
+    healthCheckPath: /health
+    envVars:
+      # App Configuration
+      - key: APP_NAME
+        value: Amazon Review Intelligence
+      - key: APP_VERSION
+        value: "2.0.0"
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+
+      # Server
+      - key: HOST
+        value: 0.0.0.0
+      - key: WORKERS
+        value: "2"
+
+      # CORS - IMPORTANT: Update with your Vercel URL
+      - key: ALLOWED_ORIGINS
+        value: "https://your-frontend.vercel.app,http://localhost:3000"
+
+      # Apify Configuration
+      - key: APIFY_API_TOKEN
+        sync: false  # Set this in Render dashboard as secret
+      - key: APIFY_ACTOR_ID
+        value: junglee/amazon-reviews-scraper
+      - key: APIFY_TIMEOUT_SECONDS
+        value: "300"
+
+      # AI/NLP
+      - key: ENABLE_AI
+        value: "true"
+      - key: AI_PROVIDER
+        value: free
+
+      # Data Source
+      - key: DATA_SOURCE
+        value: apify
+      - key: MAX_REVIEWS_PER_REQUEST
+        value: "100"
+      - key: USE_MOCK_FALLBACK
+        value: "true"
+
+      # Export
+      - key: EXPORT_FOLDER
+        value: /tmp/exports
+
+      # Features
+      - key: ENABLE_EXPORT_PDF
+        value: "true"
+      - key: ENABLE_EXPORT_EXCEL
+        value: "true"
+
+      # Optional: OpenAI (if you want to use it)
+      # - key: OPENAI_API_KEY
+      #   sync: false
+
+      # Optional: Hugging Face
+      # - key: HUGGINGFACE_API_KEY
+      #   sync: false
+
+# Optional: Add database if needed
+# - type: postgres
+#   name: amazon-review-db
+#   databaseName: reviews
+#   user: reviews_user
+#   plan: free

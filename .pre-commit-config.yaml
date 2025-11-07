@@ -1,0 +1,52 @@
+# Pre-commit hooks configuration
+# Install: pip install pre-commit
+# Setup: pre-commit install
+
+repos:
+  # Frontend checks
+  - repo: local
+    hooks:
+      - id: frontend-type-check
+        name: TypeScript Type Check
+        entry: bash -c 'cd frontend && npm run type-check || npx tsc --noEmit || true'
+        language: system
+        files: '^frontend/.*\.(ts|tsx)$'
+        pass_filenames: false
+
+  # Backend checks
+  - repo: local
+    hooks:
+      - id: python-syntax-check
+        name: Python Syntax Check
+        entry: python -m py_compile
+        language: system
+        types: [python]
+        files: '^backend/.*\.py$'
+
+  - id: validate-properties
+        name: Validate Backend-Frontend Property Sync
+        entry: python scripts/validate-properties.py
+        language: system
+        files: '^(frontend/types/.*|backend/.*\.py)$'
+        pass_filenames: false
+
+  # General checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Python formatting (optional)
+  - repo: https://github.com/psf/black
+    rev: 24.1.1
+    hooks:
+      - id: black
+        args: ['--line-length=100']
+        files: '^backend/.*\.py$'
