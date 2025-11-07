@@ -8,10 +8,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import {
-  ArrowLeft, Star, TrendingUp, TrendingDown, AlertCircle, 
-  CheckCircle2, Sparkles, Download, Share2, Package, 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  ArrowLeft, Star, TrendingUp, TrendingDown, AlertCircle,
+  CheckCircle2, Sparkles, Download, Share2, Package,
   MessageSquare, ThumbsUp, ThumbsDown, Minus, Calendar,
-  BarChart3, Eye, FileText, FileDown
+  BarChart3, Eye, FileText, FileDown, Mail, Twitter, Linkedin, Facebook
 } from 'lucide-react';
 import type { AnalysisResult } from '@/types';
 import { cn } from '@/lib/utils';
@@ -50,12 +56,17 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
     : (rawInsights.summary || '');
   const reviews = analysis.reviews || [];
 
-  // Share function
-  const handleShare = async () => {
+  // Share functions
+  const getShareContent = () => {
+    const title = analysis?.product_info?.title || `ASIN ${analysis?.asin || ''}`;
+    const text = `Amazon Review Intelligence: ${title} - Avg Rating ${avgRating.toFixed(1)}/5 based on ${totalReviews} reviews. AI Analysis shows ${positivePercent.toFixed(0)}% positive sentiment.`;
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    return { title, text, url };
+  };
+
+  const handleWebShare = async () => {
     try {
-      const title = analysis?.product_info?.title || `ASIN ${analysis?.asin || ''}`;
-      const text = `Amazon Review Intelligence: ${title} - Avg Rating ${avgRating.toFixed(1)}/5 based on ${totalReviews} reviews. AI Analysis shows ${positivePercent.toFixed(0)}% positive sentiment.`;
-      const url = typeof window !== 'undefined' ? window.location.href : '';
+      const { title, text, url } = getShareContent();
 
       // Try Web Share API first (mobile)
       if (navigator?.share) {
@@ -82,6 +93,58 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
         variant: 'destructive',
       });
     }
+  };
+
+  const handleEmailShare = () => {
+    const { title, text, url } = getShareContent();
+    const subject = encodeURIComponent(`Amazon Review Analysis: ${title}`);
+    const body = encodeURIComponent(`${text}\n\nView full report: ${url}`);
+    window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+    toast({
+      title: '📧 Email client opened',
+      description: 'Opening your default email client...',
+    });
+  };
+
+  const handleTwitterShare = () => {
+    const { title, text, url } = getShareContent();
+    const tweetText = encodeURIComponent(`${text.substring(0, 240)}... ${url}`);
+    window.open(`https://twitter.com/intent/tweet?text=${tweetText}`, '_blank');
+    toast({
+      title: '🐦 Sharing to Twitter',
+      description: 'Opening Twitter...',
+    });
+  };
+
+  const handleLinkedInShare = () => {
+    const { url } = getShareContent();
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`, '_blank');
+    toast({
+      title: '💼 Sharing to LinkedIn',
+      description: 'Opening LinkedIn...',
+    });
+  };
+
+  const handleFacebookShare = () => {
+    const { url } = getShareContent();
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+    toast({
+      title: '📘 Sharing to Facebook',
+      description: 'Opening Facebook...',
+    });
+  };
+
+  const handleSlackShare = () => {
+    const { title, text, url } = getShareContent();
+    const slackText = encodeURIComponent(`${title}\n${text}\n${url}`);
+    window.open(`slack://open`, '_blank');
+    // Copy to clipboard for easy pasting in Slack
+    navigator.clipboard.writeText(`${title}\n${text}\n${url}`);
+    toast({
+      title: '💬 Opening Slack',
+      description: 'Message copied to clipboard - paste in any Slack channel!',
+      duration: 4000,
+    });
   };
 
   // Download CSV function
@@ -185,16 +248,45 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
               <span className="hidden sm:inline">Back to Overview</span>
             </Button>
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="gap-2" 
-                onClick={handleShare}
-                disabled={isExporting}
-              >
-                <Share2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Share</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    disabled={isExporting}
+                  >
+                    <Share2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Share</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={handleWebShare}>
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Share via Device
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleEmailShare}>
+                    <Mail className="h-4 w-4 mr-2" />
+                    Email / Gmail
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSlackShare}>
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Slack
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleTwitterShare}>
+                    <Twitter className="h-4 w-4 mr-2" />
+                    Twitter
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLinkedInShare}>
+                    <Linkedin className="h-4 w-4 mr-2" />
+                    LinkedIn
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleFacebookShare}>
+                    <Facebook className="h-4 w-4 mr-2" />
+                    Facebook
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button 
                 size="sm" 
                 className="gap-2" 

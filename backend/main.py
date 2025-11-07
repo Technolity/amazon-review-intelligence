@@ -5,7 +5,7 @@ Real-time Apify Integration with AI/NLP Analysis
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from contextlib import asynccontextmanager
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
@@ -14,6 +14,7 @@ import asyncio
 import json
 import traceback
 from collections import defaultdict
+from io import BytesIO
 
 # Load environment first
 from dotenv import load_dotenv
@@ -32,6 +33,24 @@ import nltk
 
 # Apify import
 from apify_client import ApifyClient
+
+# Import export service
+try:
+    from app.services.exporter import exporter
+    EXPORTER_AVAILABLE = True
+    print("✅ Exporter service loaded")
+except ImportError as e:
+    EXPORTER_AVAILABLE = False
+    print(f"⚠️ Exporter service not available: {e}")
+
+# Import bot detector
+try:
+    from app.services.bot_detector import bot_detector
+    BOT_DETECTOR_AVAILABLE = True
+    print("✅ Bot detector loaded")
+except ImportError as e:
+    BOT_DETECTOR_AVAILABLE = False
+    print(f"⚠️ Bot detector not available: {e}")
 
 # Initialize components
 vader_analyzer = SentimentIntensityAnalyzer()
@@ -385,23 +404,42 @@ async def fetch_apify_reviews(asin: str, max_reviews: int = 50, country: str = "
             return generate_mock_reviews(asin, max_reviews)
         return {"success": False, "error": str(e)}
 
-def analyze_reviews(reviews: List[Dict]) -> Dict:
-    """Analyze reviews with AI/NLP"""
+def analyze_reviews(reviews: List[Dict], filter_bots: bool = True) -> Dict:
+    """Analyze reviews with AI/NLP and bot detection"""
     if not reviews:
         return {}
-    
+
+    # Step 1: Bot detection
+    bot_analysis = None
+    if BOT_DETECTOR_AVAILABLE and filter_bots:
+        print(f"  🤖 Running bot detection on {len(reviews)} reviews...")
+        bot_analysis = bot_detector.analyze_batch(reviews)
+        genuine_reviews = bot_analysis.get('genuine_reviews', reviews)
+        bot_stats = bot_analysis.get('bot_statistics', {})
+
+        print(f"  ✅ Bot detection complete:")
+        print(f"     - Genuine: {bot_stats.get('genuine_count', 0)}")
+        print(f"     - Bots: {bot_stats.get('bot_count', 0)} ({bot_stats.get('bot_percentage', 0)}%)")
+
+        # Use genuine reviews for analysis
+        reviews_to_analyze = genuine_reviews
+    else:
+        reviews_to_analyze = reviews
+        bot_stats = {"total_reviews": len(reviews), "genuine_count": len(reviews), "bot_count": 0}
+
+    # Step 2: Sentiment analysis
     analyzed = []
     sentiments = []
     texts = []
-    
-    for review in reviews:
+
+    for review in reviews_to_analyze:
         text = f"{review.get('title', '')} {review.get('text', '')}"
         texts.append(text)
-        
+
         # Sentiment analysis
         sentiment_result = analyze_sentiment(text)
         sentiments.append(sentiment_result['sentiment'])
-        
+
         # Add analysis to review
         analyzed.append({
             **review,
@@ -410,31 +448,35 @@ def analyze_reviews(reviews: List[Dict]) -> Dict:
             "polarity": sentiment_result['polarity'],
             "subjectivity": sentiment_result['subjectivity']
         })
-    
-    # Aggregate metrics
+
+    # Step 3: Aggregate metrics
     sentiment_counts = pd.Series(sentiments).value_counts().to_dict()
-    
-    # Extract keywords
+
+    # Step 4: Extract keywords
     keywords = extract_keywords(texts, top_n=15)
-    
-    # Generate insights
-    total = len(reviews)
+
+    # Step 5: Generate insights
+    total = len(reviews_to_analyze)
     positive_pct = (sentiment_counts.get('positive', 0) / total * 100) if total else 0
     negative_pct = (sentiment_counts.get('negative', 0) / total * 100) if total else 0
-    
+
     insights = []
     if positive_pct > 70:
         insights.append(f"⭐ Excellent satisfaction: {positive_pct:.1f}% positive reviews")
     elif positive_pct > 50:
         insights.append(f"✅ Good satisfaction: {positive_pct:.1f}% positive reviews")
-    
+
     if negative_pct > 30:
         insights.append(f"⚠️ High negativity: {negative_pct:.1f}% negative reviews")
-    
+
+    # Add bot detection insight
+    if BOT_DETECTOR_AVAILABLE and filter_bots and bot_stats.get('bot_count', 0) > 0:
+        insights.append(f"🤖 Filtered {bot_stats['bot_count']} bot/fake reviews ({bot_stats.get('bot_percentage', 0)}%)")
+
     if keywords:
         top_words = ", ".join([k['word'] for k in keywords[:5]])
         insights.append(f"🔤 Top keywords: {top_words}")
-    
+
     return {
         "reviews": analyzed,
         "sentiment_distribution": {
@@ -444,7 +486,8 @@ def analyze_reviews(reviews: List[Dict]) -> Dict:
         },
         "top_keywords": keywords,
         "insights": insights,
-        "summary": f"Analyzed {total} reviews. Overall sentiment: {'Positive' if positive_pct > 50 else 'Mixed'}"
+        "summary": f"Analyzed {total} genuine reviews. Overall sentiment: {'Positive' if positive_pct > 50 else 'Mixed'}",
+        "bot_detection": bot_stats if BOT_DETECTOR_AVAILABLE else None
     }
 
 def generate_growth_data(asin: str, period: str = "week") -> List[Dict]:
@@ -667,18 +710,95 @@ async def generate_insights(request: Dict):
         reviews = request.get("reviews", [])
         if not reviews:
             raise HTTPException(status_code=400, detail="Reviews data required")
-        
+
         analysis = analyze_reviews(reviews)
-        
+
         return {
             "success": True,
             "insights": analysis.get("insights", []),
             "summary": analysis.get("summary", ""),
             "keywords": analysis.get("top_keywords", [])
         }
-        
+
     except Exception as e:
-        logger.error(f"Insights error: {e}")
+        print(f"Insights error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/export/csv")
+async def export_csv(request: Dict):
+    """Export analysis to CSV"""
+    try:
+        if not EXPORTER_AVAILABLE:
+            raise HTTPException(status_code=503, detail="Export service not available")
+
+        analysis_data = request.get("analysis_data")
+        if not analysis_data:
+            raise HTTPException(status_code=400, detail="Analysis data required")
+
+        print(f"📊 Exporting CSV for ASIN: {analysis_data.get('asin', 'unknown')}")
+
+        # Use exporter service
+        result = exporter.export_to_csv(
+            analysis_data=analysis_data,
+            reviews=analysis_data.get("reviews", [])
+        )
+
+        if not result.get("success"):
+            raise HTTPException(status_code=500, detail=result.get("error", "Export failed"))
+
+        file_path = result.get("file_path")
+
+        # Return file as download
+        if os.path.exists(file_path):
+            return FileResponse(
+                file_path,
+                media_type="text/csv",
+                filename=os.path.basename(file_path)
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Export file not found")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"CSV export error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/export/pdf")
+async def export_pdf(request: Dict):
+    """Export analysis to PDF"""
+    try:
+        if not EXPORTER_AVAILABLE:
+            raise HTTPException(status_code=503, detail="Export service not available")
+
+        analysis_data = request.get("analysis_data")
+        if not analysis_data:
+            raise HTTPException(status_code=400, detail="Analysis data required")
+
+        print(f"📄 Exporting PDF for ASIN: {analysis_data.get('asin', 'unknown')}")
+
+        # Use exporter service
+        result = exporter.export_to_pdf(analysis_data=analysis_data)
+
+        if not result.get("success"):
+            raise HTTPException(status_code=500, detail=result.get("error", "Export failed"))
+
+        file_path = result.get("file_path")
+
+        # Return file as download
+        if os.path.exists(file_path):
+            return FileResponse(
+                file_path,
+                media_type="application/pdf",
+                filename=os.path.basename(file_path)
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Export file not found")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"PDF export error: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============= ERROR HANDLERS =============
