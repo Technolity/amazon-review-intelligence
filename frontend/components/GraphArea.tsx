@@ -299,7 +299,8 @@ export default function GraphArea({ analysis, isLoading, onViewDetails, aiEnable
         dateMap.set(date, { positive: 0, negative: 0, neutral: 0 });
       }
       const counts = dateMap.get(date)!;
-      const sentiment = review.sentiment || (review.rating >= 4 ? 'positive' : review.rating <= 2 ? 'negative' : 'neutral');
+      const rating = review.rating ?? review.stars ?? 3;
+      const sentiment = review.sentiment || (rating >= 4 ? 'positive' : rating <= 2 ? 'negative' : 'neutral');
       counts[sentiment as keyof typeof counts]++;
     });
 
