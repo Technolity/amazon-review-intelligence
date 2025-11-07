@@ -15,6 +15,9 @@ nltk
 textblob
 vaderSentiment
 
+# AI Services (Optional)
+openai  # For GPT-powered summaries and insights
+
 # Web Scraping
 apify-client
 beautifulsoup4

@@ -24,12 +24,6 @@ interface GraphAreaProps {
   aiEnabled?: boolean;
 }
 
-interface GrowthData {
-  date: string;
-  buyers: number;
-  trend: 'up' | 'down';
-}
-
 interface KeywordData {
   keyword: string;
   frequency: number;
@@ -157,7 +151,6 @@ const AnimatedVerticalBar = (props: any) => {
 
 export default function GraphArea({ analysis, isLoading, onViewDetails, aiEnabled }: GraphAreaProps) {
   const [activeTab, setActiveTab] = useState('overview');
-  const [growthData, setGrowthData] = useState<GrowthData[]>([]);
   const [selectedKeyword, setSelectedKeyword] = useState<KeywordData | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
@@ -365,7 +358,7 @@ export default function GraphArea({ analysis, isLoading, onViewDetails, aiEnable
 
         {/* Main Charts - Responsive Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 sm:space-y-4 md:space-y-6">
-          <TabsList className="grid w-full grid-cols-4 h-8 sm:h-9 md:h-10">
+          <TabsList className="grid w-full grid-cols-3 h-8 sm:h-9 md:h-10">
             <TabsTrigger value="overview" className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm px-1.5 sm:px-2 py-1.5 sm:py-2 md:py-2.5">
               <BarChart3 className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 mr-0 sm:mr-1 md:mr-2" />
               <span className="hidden sm:inline">Overview</span>
@@ -373,10 +366,6 @@ export default function GraphArea({ analysis, isLoading, onViewDetails, aiEnable
             <TabsTrigger value="sentiment" className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm px-1.5 sm:px-2 py-1.5 sm:py-2 md:py-2.5">
               <PieChartIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 mr-0 sm:mr-1 md:mr-2" />
               <span className="hidden sm:inline">Sentiment</span>
-            </TabsTrigger>
-            <TabsTrigger value="growth" className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm px-1.5 sm:px-2 py-1.5 sm:py-2 md:py-2.5">
-              <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 mr-0 sm:mr-1 md:mr-2" />
-              <span className="hidden sm:inline">Growth</span>
             </TabsTrigger>
             <TabsTrigger value="insights" className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm px-1.5 sm:px-2 py-1.5 sm:py-2 md:py-2.5">
               <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 mr-0 sm:mr-1 md:mr-2" />
@@ -542,49 +531,6 @@ export default function GraphArea({ analysis, isLoading, onViewDetails, aiEnable
                 </CardContent>
               </Card>
             )}
-          </TabsContent>
-
-          {/* Growth Tab */}
-          <TabsContent value="growth" className="space-y-3 sm:space-y-4 md:space-y-6 mt-3 sm:mt-4 md:mt-6">
-            <Card className="border-none shadow-lg">
-              <CardHeader className="p-3 sm:p-4 md:p-6">
-                <CardTitle className="text-xs sm:text-sm md:text-base lg:text-lg flex items-center gap-1.5 sm:gap-2">
-                  <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4 md:h-5 md:w-5 text-green-500 flex-shrink-0" />
-                  <span>Weekly Growth Trend</span>
-                </CardTitle>
-                <CardDescription className="text-[10px] sm:text-xs md:text-sm">
-                  Buyer activity over the past week
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
-                <ResponsiveContainer width="100%" height={getChartHeight()}>
-                  <AreaChart data={growthData} margin={{ top: 10, right: isMobile ? 10 : 30, left: isMobile ? 0 : 10, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorBuyers" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-muted/20" />
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fontSize: isMobile ? 9 : isTablet ? 10 : 12 }}
-                      interval={isMobile ? 1 : 0}
-                    />
-                    <YAxis tick={{ fontSize: isMobile ? 9 : isTablet ? 10 : 12 }} />
-                    <Tooltip />
-                    <Area 
-                      type="monotone" 
-                      dataKey="buyers" 
-                      stroke={COLORS.primary} 
-                      fillOpacity={1} 
-                      fill="url(#colorBuyers)" 
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* Insights Tab */}

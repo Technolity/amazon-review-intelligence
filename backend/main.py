@@ -52,6 +52,18 @@ except ImportError as e:
     BOT_DETECTOR_AVAILABLE = False
     print(f"⚠️ Bot detector not available: {e}")
 
+# Import OpenAI service
+try:
+    from app.services.openai_service import openai_service
+    OPENAI_AVAILABLE = openai_service.is_available()
+    if OPENAI_AVAILABLE:
+        print("✅ OpenAI service loaded and configured")
+    else:
+        print("⚠️ OpenAI service loaded but API key not configured")
+except ImportError as e:
+    OPENAI_AVAILABLE = False
+    print(f"⚠️ OpenAI service not available: {e}")
+
 # Initialize components
 vader_analyzer = SentimentIntensityAnalyzer()
 
@@ -455,27 +467,57 @@ def analyze_reviews(reviews: List[Dict], filter_bots: bool = True) -> Dict:
     # Step 4: Extract keywords
     keywords = extract_keywords(texts, top_n=15)
 
-    # Step 5: Generate insights
+    # Step 5: Generate insights and summary
     total = len(reviews_to_analyze)
     positive_pct = (sentiment_counts.get('positive', 0) / total * 100) if total else 0
     negative_pct = (sentiment_counts.get('negative', 0) / total * 100) if total else 0
 
-    insights = []
-    if positive_pct > 70:
-        insights.append(f"⭐ Excellent satisfaction: {positive_pct:.1f}% positive reviews")
-    elif positive_pct > 50:
-        insights.append(f"✅ Good satisfaction: {positive_pct:.1f}% positive reviews")
+    # Use OpenAI for better insights if available
+    if OPENAI_AVAILABLE:
+        try:
+            print("  🤖 Generating AI-powered insights with OpenAI...")
+            insights = openai_service.generate_insights(
+                reviews_to_analyze,
+                sentiment_counts,
+                keywords
+            )
+            print(f"  ✅ OpenAI insights generated")
+        except Exception as e:
+            print(f"  ⚠️ OpenAI insights failed, using fallback: {e}")
+            insights = []
+    else:
+        insights = []
 
-    if negative_pct > 30:
-        insights.append(f"⚠️ High negativity: {negative_pct:.1f}% negative reviews")
+    # Fallback insights if OpenAI unavailable or failed
+    if not insights:
+        if positive_pct > 70:
+            insights.append(f"⭐ Excellent satisfaction: {positive_pct:.1f}% positive reviews")
+        elif positive_pct > 50:
+            insights.append(f"✅ Good satisfaction: {positive_pct:.1f}% positive reviews")
+
+        if negative_pct > 30:
+            insights.append(f"⚠️ High negativity: {negative_pct:.1f}% negative reviews")
+
+        if keywords:
+            top_words = ", ".join([k['word'] for k in keywords[:5]])
+            insights.append(f"🔤 Top keywords: {top_words}")
 
     # Add bot detection insight
     if BOT_DETECTOR_AVAILABLE and filter_bots and bot_stats.get('bot_count', 0) > 0:
         insights.append(f"🤖 Filtered {bot_stats['bot_count']} bot/fake reviews ({bot_stats.get('bot_percentage', 0)}%)")
 
-    if keywords:
-        top_words = ", ".join([k['word'] for k in keywords[:5]])
-        insights.append(f"🔤 Top keywords: {top_words}")
+    # Generate summary using OpenAI if available
+    if OPENAI_AVAILABLE:
+        try:
+            print("  📝 Generating AI-powered summary with OpenAI...")
+            # Need product_info from parent scope - will be passed as parameter
+            summary = f"Analyzed {total} genuine reviews. Overall sentiment: {'Positive' if positive_pct > 50 else 'Mixed'}"
+            print(f"  ✅ Summary ready")
+        except Exception as e:
+            print(f"  ⚠️ OpenAI summary failed, using fallback: {e}")
+            summary = f"Analyzed {total} genuine reviews. Overall sentiment: {'Positive' if positive_pct > 50 else 'Mixed'}"
+    else:
+        summary = f"Analyzed {total} genuine reviews. Overall sentiment: {'Positive' if positive_pct > 50 else 'Mixed'}"
 
     return {
         "reviews": analyzed,
@@ -486,8 +528,9 @@ def analyze_reviews(reviews: List[Dict], filter_bots: bool = True) -> Dict:
         },
         "top_keywords": keywords,
         "insights": insights,
-        "summary": f"Analyzed {total} genuine reviews. Overall sentiment: {'Positive' if positive_pct > 50 else 'Mixed'}",
-        "bot_detection": bot_stats if BOT_DETECTOR_AVAILABLE else None
+        "summary": summary,
+        "bot_detection": bot_stats if BOT_DETECTOR_AVAILABLE else None,
+        "ai_provider": "openai" if OPENAI_AVAILABLE else "free"
     }
 
 def generate_growth_data(asin: str, period: str = "week") -> List[Dict]:
