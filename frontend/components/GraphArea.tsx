@@ -267,7 +267,10 @@ export default function GraphArea({ analysis, isLoading, onViewDetails, aiEnable
     const totalRatings = Object.values(ratingDist).reduce((sum: number, count) => sum + (typeof count === 'number' ? count : 0), 0);
     
     const ratingDistribution: RatingDistData[] = [5, 4, 3, 2, 1].map((rating, idx) => {
-      const count = ratingDist[rating] || ratingDist[`${rating}_star`] || 0;
+      // Fix TypeScript indexing - use string keys
+      const numKey = rating.toString() as '5' | '4' | '3' | '2' | '1';
+      const starKey = `${rating}_star` as '5_star' | '4_star' | '3_star' | '2_star' | '1_star';
+      const count = ratingDist[numKey] || ratingDist[starKey] || 0;
       return {
         rating: `${rating}★`,
         count: typeof count === 'number' ? count : 0,
