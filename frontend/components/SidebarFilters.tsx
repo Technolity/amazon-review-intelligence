@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { amazonUrlParser } from '@/app/utils/amazon_url_parser';
 
 interface SidebarFiltersProps {
   onAnalyze: (asin: string, maxReviews: number, enableAI: boolean, country: string) => void;
@@ -70,10 +71,15 @@ export default function SidebarFilters({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanAsin = asin.trim().toUpperCase();
-    
-    if (cleanAsin.length === 10) {
-      onAnalyze(cleanAsin, maxReviews, enableAI, country);
+    const input = asin.trim();
+
+    // Try to extract ASIN from URL or validate as ASIN
+    const extractedAsin = amazonUrlParser.extractAsin(input);
+
+    if (extractedAsin) {
+      onAnalyze(extractedAsin, maxReviews, enableAI, country);
+      // Update input field with extracted ASIN
+      setAsin(extractedAsin);
     }
   };
 
@@ -153,15 +159,14 @@ export default function SidebarFilters({
           <div className="space-y-2">
             <Input
               type="text"
-              placeholder="Enter ASIN (e.g., B0CHX3TYK1)"
+              placeholder="Enter ASIN or Amazon URL"
               value={asin}
-              onChange={(e) => setAsin(e.target.value.toUpperCase())}
+              onChange={(e) => setAsin(e.target.value)}
               disabled={isLoading}
-              maxLength={10}
-              className="font-mono text-sm h-10 md:h-9"
+              className="font-mono text-xs h-10 md:h-9"
             />
             <p className="text-[10px] md:text-xs text-muted-foreground">
-              10-character Amazon product ID
+              ASIN (e.g., B0CHX3TYK1) or full Amazon product URL
             </p>
           </div>
           
@@ -180,10 +185,10 @@ export default function SidebarFilters({
           </div>
           
           {/* Analyze Button */}
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             className="w-full h-10 md:h-9 text-sm"
-            disabled={isLoading || asin.length !== 10}
+            disabled={isLoading || !asin.trim() || asin.trim().length < 10}
           >
             {isLoading ? (
               <>
