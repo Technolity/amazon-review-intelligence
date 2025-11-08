@@ -166,7 +166,7 @@ ${url}`);
     const reviewAuthor = 'Anonymous';
     const reviewDate = review.date || 'Unknown date';
     const reviewTitle = review.title || 'No title';
-    const reviewText = review.text || review.content || 'No content';
+    const reviewText = review.text || 'No content';
     const reviewConfidence = review.sentiment_confidence ?? 0;
     const reviewVerified = review.verified ?? review.verified_purchase ?? false;
 
