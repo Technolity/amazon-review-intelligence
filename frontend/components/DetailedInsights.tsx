@@ -4,20 +4,14 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   ArrowLeft, Star, TrendingUp, TrendingDown, AlertCircle,
   CheckCircle2, Sparkles, Download, Share2, Package,
-  MessageSquare, ThumbsUp, ThumbsDown, Minus, Calendar,
-  BarChart3, Eye, FileText, FileDown, Mail, Twitter, Linkedin, Facebook
+  Calendar, BarChart3, ThumbsUp, ThumbsDown, Minus,
+  Twitter, Linkedin, Facebook, Mail
 } from 'lucide-react';
 import type { AnalysisResult, Review } from '@/types';
 import { cn } from '@/lib/utils';
@@ -36,15 +30,14 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
   const avgRating = analysis.average_rating || 0;
   const sentimentDist = analysis.sentiment_distribution || { positive: 0, neutral: 0, negative: 0 };
   const total = sentimentDist.positive + sentimentDist.neutral + sentimentDist.negative;
-  
+
   const positivePercent = total > 0 ? (sentimentDist.positive / total) * 100 : 0;
   const neutralPercent = total > 0 ? (sentimentDist.neutral / total) * 100 : 0;
   const negativePercent = total > 0 ? (sentimentDist.negative / total) * 100 : 0;
 
   const themes = analysis.themes || [];
   const keywords = analysis.top_keywords || [];
-  
-  // FIXED: Properly extract insights
+
   const rawInsights = analysis.insights || [];
   const insights = Array.isArray(rawInsights)
     ? rawInsights
@@ -52,27 +45,18 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
   const summary = Array.isArray(rawInsights)
     ? ''
     : (rawInsights.summary || '');
-  
+
   const reviews = analysis.reviews || [];
 
-  // CRITICAL FIX: Properly filter reviews by sentiment
   const getFilteredReviews = (targetSentiment: 'positive' | 'neutral' | 'negative') => {
     return reviews.filter(review => {
-      // Check explicit sentiment field first
-      if (review.sentiment === targetSentiment) {
-        return true;
-      }
-      
-      // Fallback to rating-based filtering
-      const rating = review.stars || review.stars || 0;
-      
-      if (targetSentiment === 'positive') {
-        return rating >= 4;
-      } else if (targetSentiment === 'negative') {
-        return rating <= 2;
-      } else {
-        return rating === 3;
-      }
+      if (review.sentiment === targetSentiment) return true;
+
+      const rating = review.stars ?? 0;
+
+      if (targetSentiment === 'positive') return rating >= 4;
+      if (targetSentiment === 'negative') return rating <= 2;
+      return rating === 3;
     });
   };
 
@@ -80,9 +64,8 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
   const neutralReviews = getFilteredReviews('neutral');
   const negativeReviews = getFilteredReviews('negative');
 
-  // Share functions
   const getShareContent = () => {
-    const title = analysis?.product_info?.title || `ASIN ${analysis?.asin || ''}`;
+    const title = analysis.product_info?.title || `ASIN ${analysis.asin || ''}`;
     const text = `Amazon Review Intelligence: ${title} - Avg Rating ${avgRating.toFixed(1)}/5 based on ${totalReviews} reviews. AI Analysis shows ${positivePercent.toFixed(0)}% positive sentiment.`;
     const url = typeof window !== 'undefined' ? window.location.href : '';
     return { title, text, url };
@@ -101,13 +84,17 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
         return;
       }
 
-      await navigator.clipboard.writeText(`${title}\n\n${text}\n\n${url}`);
+      await navigator.clipboard.writeText(`${title}
+
+${text}
+
+${url}`);
       toast({
         title: '📋 Copied to clipboard',
         description: 'Analysis summary copied. Paste it anywhere to share.',
       });
-    } catch (error) {
-      console.error('Share error:', error);
+    } catch {
+      // silently fail
     }
   };
 
@@ -126,7 +113,9 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
         shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
         break;
       case 'email':
-        shareUrl = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text + '\n\n' + url)}`;
+        shareUrl = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text + '
+
+' + url)}`;
         break;
     }
 
@@ -143,14 +132,13 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
         description: 'Preparing your export file...',
       });
 
-      // TODO: Implement actual export functionality
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       toast({
         title: '✅ Export Complete',
         description: `Downloaded analysis_${analysis.asin}.${format}`,
       });
-    } catch (error) {
+    } catch {
       toast({
         title: '❌ Export Failed',
         description: 'Unable to export file. Please try again.',
@@ -161,32 +149,28 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
     }
   };
 
-  // Helper function to render star rating
-  const renderStarRating = (rating: number) => {
-    return (
-      <div className="flex">
-        {[...Array(5)].map((_, i) => (
-          <Star 
-            key={i} 
-            className={cn(
-              "h-4 w-4",
-              i < rating ? "fill-yellow-500 text-yellow-500" : "text-muted"
-            )}
-          />
-        ))}
-      </div>
-    );
-  };
+  const renderStarRating = (rating: number) => (
+    <div className="flex">
+      {[...Array(5)].map((_, i) => (
+        <Star
+          key={i}
+          className={cn(
+            "h-4 w-4",
+            i < rating ? "fill-yellow-500 text-yellow-500" : "text-muted"
+          )}
+        />
+      ))}
+    </div>
+  );
 
-  // Helper function to render review card
   const renderReviewCard = (review: Review, index: number, bgColor: string) => {
-    const reviewRating = review.stars || review.stars || 0;
-    const reviewAuthor = 'Anonymous'; 
+    const reviewRating = review.stars ?? 0;
+    const reviewAuthor = 'Anonymous';
     const reviewDate = review.date || 'Unknown date';
     const reviewTitle = review.title || 'No title';
     const reviewText = review.text || review.content || 'No content';
-    const reviewConfidence = review.sentiment_confidence || 0;
-    const reviewVerified = review.verified || review.verified_purchase || false;
+    const reviewConfidence = review.sentiment_confidence ?? 0;
+    const reviewVerified = review.verified ?? review.verified_purchase ?? false;
 
     return (
       <div key={index} className={cn("p-4 rounded-lg border", bgColor)}>
@@ -221,7 +205,6 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
   return (
     <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 bg-gradient-to-br from-background via-background to-muted/20 overflow-y-auto">
       <div className="max-w-[1400px] mx-auto space-y-4 sm:space-y-6">
-        
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-3">
@@ -279,15 +262,15 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
                 <DropdownMenuItem onClick={() => handleExport('pdf')}>
-                  <FileText className="h-4 w-4 mr-2" />
+                  <Download className="h-4 w-4 mr-2" />
                   Export PDF
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleExport('csv')}>
-                  <FileDown className="h-4 w-4 mr-2" />
+                  <Download className="h-4 w-4 mr-2" />
                   Export CSV
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleExport('xlsx')}>
-                  <FileDown className="h-4 w-4 mr-2" />
+                  <Download className="h-4 w-4 mr-2" />
                   Export Excel
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -304,14 +287,14 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
               <div className="flex items-start gap-4">
                 {analysis.product_info.image_url && (
                   <img
-  src={analysis.product_info.image_url || ''}
-  alt={analysis.product_info.title || 'Product image'}
-  className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border"
-/>
+                    src={analysis.product_info.image_url || ''}
+                    alt={analysis.product_info.title || 'Product image'}
+                    className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border"
+                  />
                 )}
                 <div className="flex-1 min-w-0">
                   <h2 className="text-base sm:text-lg md:text-xl font-bold mb-2">
-                    {analysis.product_info.title}
+                    {analysis.product_info.title || ''}
                   </h2>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                     {analysis.product_info.asin && (
@@ -320,10 +303,10 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
                         {analysis.product_info.asin}
                       </div>
                     )}
-                    {analysis.product_info.rating && (
+                    {analysis.product_info.average_rating !== null && (
                       <div className="flex items-center gap-1.5">
                         <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-                        {analysis.product_info.rating.toFixed(1)}
+                        {analysis.product_info.average_rating.toFixed(1)}
                       </div>
                     )}
                   </div>
@@ -456,172 +439,44 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
           </CardContent>
         </Card>
 
-        {/* Keywords & Themes */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          {/* Keywords */}
-          {keywords.length > 0 && (
-            <Card className="border-none shadow-xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  Top Keywords
-                </CardTitle>
-                <CardDescription>
-                  Most frequently mentioned terms
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {keywords.map((keyword, index) => {
-                    const size = keyword.frequency > 20 ? 'large' : keyword.frequency > 10 ? 'medium' : 'small';
-                    return (
-                      <Badge
-                        key={index}
-                        variant="outline"
-                        className={cn(
-                          "transition-all hover:scale-110",
-                          size === 'large' && "text-base px-4 py-2",
-                          size === 'medium' && "text-sm px-3 py-1.5",
-                          size === 'small' && "text-xs px-2 py-1"
-                        )}
-                      >
-                        {keyword.word} ({keyword.frequency})
-                      </Badge>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+        {/* Keywords */}
+        {keywords.length > 0 && (
+          <Card className="border-none shadow-xl">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                Top Keywords
+              </CardTitle>
+              <CardDescription>
+                Most frequently mentioned terms
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {keywords.map((keyword, index) => {
+                  const freq = typeof keyword.count === 'number' ? keyword.count : (keyword.frequency ?? 0);
+                  const size = freq > 20 ? 'large' : freq > 10 ? 'medium' : 'small';
 
-          {/* Themes */}
-          {themes.length > 0 && (
-            <Card className="border-none shadow-xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-primary" />
-                  Key Themes
-                </CardTitle>
-                <CardDescription>
-                  Common discussion topics
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {themes.map((theme, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{theme.theme}</span>
-                      <Badge variant="secondary">{theme.mentions} mentions</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* Sample Reviews - FIXED */}
-        <Card className="border-none shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Eye className="h-5 w-5 text-orange-500" />
-              Sample Reviews
-            </CardTitle>
-            <CardDescription>
-              Representative reviews from the analysis
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="positive" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="positive" className="gap-2">
-                  <ThumbsUp className="h-4 w-4" />
-                  Positive ({positiveReviews.length})
-                </TabsTrigger>
-                <TabsTrigger value="neutral" className="gap-2">
-                  <Minus className="h-4 w-4" />
-                  Neutral ({neutralReviews.length})
-                </TabsTrigger>
-                <TabsTrigger value="negative" className="gap-2">
-                  <ThumbsDown className="h-4 w-4" />
-                  Negative ({negativeReviews.length})
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Positive Reviews */}
-              <TabsContent value="positive" className="space-y-4">
-                {positiveReviews.length > 0 ? (
-                  positiveReviews.slice(0, 3).map((review, index) => 
-                    renderReviewCard(review, index, "bg-green-500/5")
-                  )
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <ThumbsUp className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>No positive reviews found</p>
-                  </div>
-                )}
-              </TabsContent>
-
-              {/* Neutral Reviews */}
-              <TabsContent value="neutral" className="space-y-4">
-                {neutralReviews.length > 0 ? (
-                  neutralReviews.slice(0, 3).map((review, index) => 
-                    renderReviewCard(review, index, "bg-yellow-500/5")
-                  )
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Minus className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>No neutral reviews found</p>
-                  </div>
-                )}
-              </TabsContent>
-
-              {/* Negative Reviews */}
-              <TabsContent value="negative" className="space-y-4">
-                {negativeReviews.length > 0 ? (
-                  negativeReviews.slice(0, 3).map((review, index) => 
-                    renderReviewCard(review, index, "bg-red-500/5")
-                  )
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <ThumbsDown className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>No negative reviews found</p>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-        {/* Analysis Metadata */}
-        <Card className="border-none shadow-xl bg-muted/50">
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground mb-1">Data Source</p>
-                <p className="font-semibold">{analysis.data_source || 'Apify'}</p>
+                  return (
+                    <Badge
+                      key={index}
+                      variant="outline"
+                      className={cn(
+                        "transition-all hover:scale-110",
+                        size === 'large' && "text-base px-4 py-2",
+                        size === 'medium' && "text-sm px-3 py-1.5",
+                        size === 'small' && "text-xs px-2 py-1"
+                      )}
+                    >
+                      {keyword.word || keyword.keyword || 'N/A'}
+                    </Badge>
+                  );
+                })}
               </div>
-              <div>
-                <p className="text-muted-foreground mb-1">AI Provider</p>
-                <p className="font-semibold">{analysis.ai_provider || 'VADER + TextBlob'}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground mb-1">Analysis Date</p>
-                <p className="font-semibold">
-                  {analysis.metadata?.timestamp 
-                    ? new Date(analysis.metadata.timestamp).toLocaleDateString() 
-                    : new Date().toLocaleDateString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground mb-1">Processing Time</p>
-                <p className="font-semibold">
-                  {analysis.metadata?.processing_time || 'N/A'}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
+
       </div>
     </main>
   );
