@@ -248,13 +248,23 @@ const keywords: KeywordData[] = (analysis.top_keywords || []).slice(0, 15).map(k
 }));
 
     // Themes
-    const themes: ThemeData[] = (analysis.themes || []).map((theme, idx) => ({
-      theme: theme.theme,
-      mentions: theme.mentions,
+const themes: ThemeData[] = (analysis.themes || []).map((theme, idx) => {
+  if (typeof theme === 'string') {
+    return {
+      theme: theme,
+      mentions: 0,
+      sentiment: 'neutral',
+      fill: [COLORS.primary, COLORS.secondary, COLORS.info, COLORS.success, COLORS.warning, COLORS.danger][idx % 6]
+    };
+  } else {
+    return {
+      theme: theme.theme || '',
+      mentions: theme.mentions || 0,
       sentiment: theme.sentiment || 'neutral',
       fill: [COLORS.primary, COLORS.secondary, COLORS.info, COLORS.success, COLORS.warning, COLORS.danger][idx % 6]
-    }));
-
+    };
+  }
+});
     // Emotions (if available)
     const emotions: EmotionData[] = analysis.emotions ? Object.entries(analysis.emotions).map(([key, value]) => ({
       emotion: key.charAt(0).toUpperCase() + key.slice(1),
