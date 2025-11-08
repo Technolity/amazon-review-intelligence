@@ -23,11 +23,16 @@ export interface ProductInfo {
 export interface Review {
   title: string | null;
   text: string | null;
+  content?: string | null;        // Added optional content
   stars: number | null;
+  rating?: number | null;         // Added optional rating
+  author?: string | null;         // Added optional author
   date: string | null;
   verified: boolean | null;
+  verified_purchase?: boolean | null; // Added optional verified_purchase
   sentiment: string | null;
   sentiment_score: number | null;
+  sentiment_confidence?: number | null; // Added optional sentiment_confidence
 }
 
 export interface ReviewSamples {
