@@ -193,26 +193,38 @@ export default function InsightsPanel({
           </CardHeader>
           <CardContent className="px-3 sm:px-4">
             <div className="flex flex-wrap gap-1 sm:gap-1.5 md:gap-2">
-              {themes.slice(0, 6).map((theme, index) => (
-                <div key={index} className="flex items-center">
-                  <Badge 
-                    variant={
-                      theme.sentiment === 'positive' ? 'default' : 
-                      theme.sentiment === 'negative' ? 'destructive' : 
-                      'secondary'
-                    }
-                    className="text-[9px] sm:text-[10px] md:text-xs px-1.5 sm:px-2 py-0 sm:py-0.5"
-                  >
-                    {theme.theme}
-                  </Badge>
-                  <Badge 
-                    variant="outline"
-                    className="ml-1 text-[8px] sm:text-[9px] md:text-[10px] px-1 py-0"
-                  >
-                    {theme.mentions}
-                  </Badge>
-                </div>
-              ))}
+           {themes.slice(0, 6).map((theme, index) => {
+  if (typeof theme === 'string') {
+    // Render string theme differently if needed or just as a plain badge
+    return (
+      <Badge key={index} variant="secondary" className="text-xs px-2 py-1">
+        {theme}
+      </Badge>
+    );
+  }
+
+  // Now theme is guaranteed to be of type Theme
+  return (
+    <div key={index} className="flex items-center">
+      <Badge 
+        variant={
+          theme.sentiment === 'positive' ? 'default' :
+          theme.sentiment === 'negative' ? 'destructive' :
+          'secondary'
+        }
+        className="text-[9px] sm:text-[10px] md:text-xs px-1.5 sm:px-2 py-0 sm:py-0.5"
+      >
+        {theme.theme}
+      </Badge>
+      <Badge 
+        variant="outline"
+        className="ml-1 text-[8px] sm:text-[9px] md:text-[10px] px-1 py-0"
+      >
+        {theme.mentions}
+      </Badge>
+    </div>
+  );
+})}
             </div>
           </CardContent>
         </Card>
