@@ -87,6 +87,10 @@ export async function analyzeReviews(params: {
     
     return analysisData;
     
+    export interface Keyword {
+     word: string;
+    frequency: number;
+       }
   } catch (error: any) {
     console.error('❌ Analysis error:', error);
     
