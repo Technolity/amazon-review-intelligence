@@ -12,14 +12,6 @@
       "develop": true
     }
   },
-  "build": {
-    "env": {
-      "NEXT_PUBLIC_API_URL": "@next_public_api_url"
-    }
-  },
-  "env": {
-    "NEXT_PUBLIC_API_URL": "@next_public_api_url"
-  },
   "functions": {
     "frontend/app/**/*.tsx": {
       "memory": 1024,
@@ -47,13 +39,6 @@
           "value": "origin-when-cross-origin"
         }
       ]
-    }
-  ],
-  "redirects": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://your-backend-url.onrender.com/api/:path*",
-      "permanent": false
     }
   ],
   "regions": ["iad1"],
