@@ -75,7 +75,7 @@ export default function Dashboard() {
         success: result.success,
         total_reviews: result.total_reviews,
         has_reviews: (result.reviews?.length || 0) > 0,
-        data_source: result.metadata?.data_source,
+        data_source: result.data_source || 'unknown',
       });
 
       if (result.success && result.total_reviews > 0) {
