@@ -416,6 +416,161 @@ async def fetch_apify_reviews(asin: str, max_reviews: int = 50, country: str = "
             return generate_mock_reviews(asin, max_reviews)
         return {"success": False, "error": str(e)}
 
+def extract_emotions(texts: List[str]) -> Dict[str, float]:
+    """Extract 8-dimension emotion scores (Plutchik's model)"""
+    from textblob import TextBlob
+    
+    # Emotion keywords (simplified emotion detection)
+    emotion_keywords = {
+        "joy": ["happy", "joy", "love", "excellent", "amazing", "wonderful", "great", "perfect", "delighted"],
+        "sadness": ["sad", "disappointed", "unhappy", "regret", "poor", "terrible", "awful", "bad"],
+        "anger": ["angry", "annoyed", "frustrated", "furious", "hate", "worst", "horrible", "disgusting"],
+        "fear": ["afraid", "worried", "concerned", "anxious", "scared", "nervous", "hesitant"],
+        "surprise": ["surprised", "unexpected", "shocked", "amazed", "astonished", "wow"],
+        "disgust": ["disgusting", "gross", "revolting", "repulsive", "nasty", "horrible"],
+        "trust": ["trust", "reliable", "confident", "recommended", "authentic", "genuine", "verified"],
+        "anticipation": ["excited", "looking forward", "can't wait", "anticipate", "expect", "hope"]
+    }
+    
+    emotion_scores = {emotion: 0.0 for emotion in emotion_keywords.keys()}
+    
+    if not texts:
+        return emotion_scores
+    
+    total_matches = 0
+    for text in texts:
+        text_lower = text.lower()
+        for emotion, keywords in emotion_keywords.items():
+            matches = sum(1 for keyword in keywords if keyword in text_lower)
+            emotion_scores[emotion] += matches
+            total_matches += matches
+    
+    # Normalize scores to 0-1 range
+    if total_matches > 0:
+        for emotion in emotion_scores:
+            emotion_scores[emotion] = min(1.0, emotion_scores[emotion] / (len(texts) * 2))
+    
+    # Apply sentiment bias for more realistic scores
+    avg_sentiment = sum(TextBlob(t).sentiment.polarity for t in texts) / len(texts) if texts else 0
+    if avg_sentiment > 0:
+        emotion_scores["joy"] = min(1.0, emotion_scores["joy"] + 0.2)
+        emotion_scores["trust"] = min(1.0, emotion_scores["trust"] + 0.15)
+    elif avg_sentiment < 0:
+        emotion_scores["sadness"] = min(1.0, emotion_scores["sadness"] + 0.15)
+        emotion_scores["anger"] = min(1.0, emotion_scores["anger"] + 0.1)
+    
+    return emotion_scores
+
+
+def extract_themes(texts: List[str], sentiment_counts: Dict[str, int]) -> List[Dict[str, Any]]:
+    """Extract themes with clustering"""
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from collections import Counter
+    import re
+    
+    if not texts or len(texts) < 3:
+        return []
+    
+    # Common product review themes
+    theme_keywords = {
+        "Quality": ["quality", "build", "material", "durable", "sturdy", "construction"],
+        "Value": ["price", "value", "worth", "money", "expensive", "cheap", "affordable"],
+        "Performance": ["works", "performance", "fast", "slow", "efficient", "effective"],
+        "Design": ["design", "look", "appearance", "color", "style", "aesthetic"],
+        "Ease of Use": ["easy", "simple", "complicated", "difficult", "user-friendly", "intuitive"],
+        "Customer Service": ["service", "support", "customer", "response", "helpful", "company"],
+        "Shipping": ["shipping", "delivery", "arrived", "packaging", "damaged", "package"],
+        "Features": ["feature", "function", "capability", "option", "settings", "mode"]
+    }
+    
+    themes = []
+    combined_text = " ".join(texts).lower()
+    
+    for theme_name, keywords in theme_keywords.items():
+        mentions = sum(combined_text.count(keyword) for keyword in keywords)
+        if mentions > 0:
+            # Determine theme sentiment based on context
+            positive_context = sum(1 for k in keywords if any(pos in combined_text for pos in ["good", "great", "excellent", "love"]))
+            negative_context = sum(1 for k in keywords if any(neg in combined_text for neg in ["bad", "poor", "terrible", "hate"]))
+            
+            if positive_context > negative_context:
+                sentiment = "positive"
+            elif negative_context > positive_context:
+                sentiment = "negative"
+            else:
+                sentiment = "neutral"
+            
+            themes.append({
+                "theme": theme_name,
+                "mentions": mentions,
+                "sentiment": sentiment
+            })
+    
+    # Sort by mentions
+    themes.sort(key=lambda x: x["mentions"], reverse=True)
+    return themes[:8]  # Top 8 themes
+
+
+def generate_summaries(reviews: List[Dict], sentiment_counts: Dict[str, int], 
+                       keywords: List[Dict], themes: List[Dict]) -> Dict[str, str]:
+    """Generate comprehensive summaries"""
+    total = len(reviews)
+    if total == 0:
+        return {
+            "overall": "No reviews available for analysis.",
+            "positive_highlights": "N/A",
+            "negative_highlights": "N/A"
+        }
+    
+    positive_count = sentiment_counts.get('positive', 0)
+    negative_count = sentiment_counts.get('negative', 0)
+    neutral_count = sentiment_counts.get('neutral', 0)
+    
+    # Overall Summary
+    sentiment_desc = "positive" if positive_count > negative_count else ("negative" if negative_count > positive_count else "mixed")
+    top_keywords_str = ", ".join([k["word"] for k in keywords[:5]]) if keywords else "N/A"
+    
+    overall = (
+        f"Analyzed {total} customer reviews with an overall {sentiment_desc} sentiment. "
+        f"{positive_count} reviews were positive ({positive_count/total*100:.1f}%), "
+        f"{negative_count} were negative ({negative_count/total*100:.1f}%), "
+        f"and {neutral_count} were neutral ({neutral_count/total*100:.1f}%). "
+        f"The most frequently mentioned topics include: {top_keywords_str}."
+    )
+    
+    # Positive Highlights
+    positive_reviews = [r for r in reviews if r.get("sentiment") == "positive"]
+    if positive_reviews and keywords:
+        positive_keywords = [k["word"] for k in keywords[:3]]
+        positive_highlights = (
+            f"Customers particularly appreciate the {', '.join(positive_keywords)}. "
+            f"Many reviewers highlight the product's strengths in these areas, "
+            f"with {len(positive_reviews)} customers expressing high satisfaction."
+        )
+    else:
+        positive_highlights = "Limited positive feedback available."
+    
+    # Negative Highlights
+    negative_reviews = [r for r in reviews if r.get("sentiment") == "negative"]
+    if negative_reviews:
+        negative_themes = [t["theme"] for t in themes if t.get("sentiment") == "negative"][:3]
+        if negative_themes:
+            negative_highlights = (
+                f"Some customers raised concerns about {', '.join(negative_themes).lower()}. "
+                f"{len(negative_reviews)} reviews mentioned issues that may require attention, "
+                f"particularly regarding quality and performance expectations."
+            )
+        else:
+            negative_highlights = f"{len(negative_reviews)} customers expressed dissatisfaction with various aspects of the product."
+    else:
+        negative_highlights = "No significant negative feedback found."
+    
+    return {
+        "overall": overall,
+        "positive_highlights": positive_highlights,
+        "negative_highlights": negative_highlights
+    }
+
 def analyze_reviews(reviews: List[Dict], filter_bots: bool = True) -> Dict:
     """Analyze reviews with AI/NLP and bot detection"""
     if not reviews:
@@ -433,7 +588,6 @@ def analyze_reviews(reviews: List[Dict], filter_bots: bool = True) -> Dict:
         print(f"     - Genuine: {bot_stats.get('genuine_count', 0)}")
         print(f"     - Bots: {bot_stats.get('bot_count', 0)} ({bot_stats.get('bot_percentage', 0)}%)")
 
-        # Use genuine reviews for analysis
         reviews_to_analyze = genuine_reviews
     else:
         reviews_to_analyze = reviews
@@ -456,18 +610,37 @@ def analyze_reviews(reviews: List[Dict], filter_bots: bool = True) -> Dict:
         analyzed.append({
             **review,
             "sentiment": sentiment_result['sentiment'],
-            "sentiment_confidence": sentiment_result['confidence'],
-            "polarity": sentiment_result['polarity'],
-            "subjectivity": sentiment_result['subjectivity']
+            "sentiment_score": sentiment_result.get('polarity', 0),
+            "sentiment_analysis": {
+                "sentiment": sentiment_result['sentiment'],
+                "vader_compound": sentiment_result.get('vader_compound', 0),
+                "textblob_polarity": sentiment_result.get('polarity', 0),
+                "confidence": sentiment_result.get('confidence', 0),
+                "subjectivity": sentiment_result.get('subjectivity', 0)
+            }
         })
 
     # Step 3: Aggregate metrics
     sentiment_counts = pd.Series(sentiments).value_counts().to_dict()
 
-    # Step 4: Extract keywords
-    keywords = extract_keywords(texts, top_n=15)
+    # Step 4: Extract keywords (with 'frequency' field)
+    keywords_raw = extract_keywords(texts, top_n=15)
+    keywords = [{"word": k["word"], "frequency": k.get("count", k.get("frequency", 0))} for k in keywords_raw]
 
-    # Step 5: Generate insights and summary
+    # ✅ Step 5: EMOTION ANALYSIS (8-dimension)
+    emotions = extract_emotions(texts)
+
+    # ✅ Step 6: THEME CLUSTERING
+    themes = extract_themes(texts, sentiment_counts)
+
+    # ✅ Step 7: REVIEW SAMPLES
+    review_samples = {
+        "positive": [r for r in analyzed if r.get("sentiment") == "positive"][:3],
+        "negative": [r for r in analyzed if r.get("sentiment") == "negative"][:3],
+        "neutral": [r for r in analyzed if r.get("sentiment") == "neutral"][:3]
+    }
+
+    # Step 8: Generate insights and summary
     total = len(reviews_to_analyze)
     positive_pct = (sentiment_counts.get('positive', 0) / total * 100) if total else 0
     negative_pct = (sentiment_counts.get('negative', 0) / total * 100) if total else 0
@@ -506,18 +679,8 @@ def analyze_reviews(reviews: List[Dict], filter_bots: bool = True) -> Dict:
     if BOT_DETECTOR_AVAILABLE and filter_bots and bot_stats.get('bot_count', 0) > 0:
         insights.append(f"🤖 Filtered {bot_stats['bot_count']} bot/fake reviews ({bot_stats.get('bot_percentage', 0)}%)")
 
-    # Generate summary using OpenAI if available
-    if OPENAI_AVAILABLE:
-        try:
-            print("  📝 Generating AI-powered summary with OpenAI...")
-            # Need product_info from parent scope - will be passed as parameter
-            summary = f"Analyzed {total} genuine reviews. Overall sentiment: {'Positive' if positive_pct > 50 else 'Mixed'}"
-            print(f"  ✅ Summary ready")
-        except Exception as e:
-            print(f"  ⚠️ OpenAI summary failed, using fallback: {e}")
-            summary = f"Analyzed {total} genuine reviews. Overall sentiment: {'Positive' if positive_pct > 50 else 'Mixed'}"
-    else:
-        summary = f"Analyzed {total} genuine reviews. Overall sentiment: {'Positive' if positive_pct > 50 else 'Mixed'}"
+    # ✅ Step 9: COMPREHENSIVE SUMMARIES
+    summaries = generate_summaries(analyzed, sentiment_counts, keywords, themes)
 
     return {
         "reviews": analyzed,
@@ -527,11 +690,15 @@ def analyze_reviews(reviews: List[Dict], filter_bots: bool = True) -> Dict:
             "negative": sentiment_counts.get('negative', 0)
         },
         "top_keywords": keywords,
+        "themes": themes,
+        "emotions": emotions,
+        "summaries": summaries,
+        "review_samples": review_samples,
         "insights": insights,
-        "summary": summary,
         "bot_detection": bot_stats if BOT_DETECTOR_AVAILABLE else None,
         "ai_provider": "openai" if OPENAI_AVAILABLE else "free"
     }
+
 
 def generate_growth_data(asin: str, period: str = "week") -> List[Dict]:
     """Generate buyer growth data"""
@@ -660,7 +827,7 @@ async def health():
 
 @app.post("/api/v1/analyze")
 async def analyze_product(request: Dict):
-    """Main analysis endpoint"""
+    """Main analysis endpoint - FLAT response structure"""
     try:
         asin = request.get("asin")
         if not asin:
@@ -690,42 +857,33 @@ async def analyze_product(request: Dict):
             "rating": reviews_data.get("average_rating", 0)
         })
         
+        # ✅ RETURN FLAT STRUCTURE - NO NESTING
         return {
             "success": True,
-            "data": reviews_data,
-            "metadata": {
-                "asin": asin,
-                "timestamp": datetime.utcnow().isoformat(),
-                "data_source": reviews_data.get("data_source", "unknown"),
-                "ai_enabled": enable_ai
-            }
+            "asin": asin,
+            "country": country,
+            "product_info": reviews_data.get("product_info"),
+            "total_reviews": reviews_data.get("total_reviews", 0),
+            "average_rating": reviews_data.get("average_rating", 0),
+            "rating_distribution": reviews_data.get("rating_distribution", {}),
+            "sentiment_distribution": reviews_data.get("sentiment_distribution"),
+            "reviews": reviews_data.get("reviews", []),
+            "review_samples": reviews_data.get("review_samples"),
+            "ai_enabled": enable_ai,
+            "top_keywords": reviews_data.get("top_keywords", []),
+            "themes": reviews_data.get("themes", []),
+            "emotions": reviews_data.get("emotions"),
+            "summaries": reviews_data.get("summaries"),
+            "insights": reviews_data.get("insights", []),
+            "data_source": reviews_data.get("data_source", "unknown"),
+            "timestamp": datetime.utcnow().isoformat(),
+            "processing_time": reviews_data.get("processing_time")
         }
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Analysis error: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/v1/reviews/fetch")
-async def fetch_reviews(request: Dict):
-    """Fetch reviews without analysis"""
-    try:
-        asin = request.get("asin")
-        if not asin:
-            raise HTTPException(status_code=400, detail="ASIN is required")
-        
-        max_reviews = min(request.get("max_reviews", 50), config.MAX_REVIEWS)
-        country = request.get("country", "US")
-        
-        logger.info(f"📦 Fetching reviews for ASIN: {asin}")
-        
-        reviews_data = await fetch_apify_reviews(asin, max_reviews, country)
-        
-        return reviews_data
-        
-    except Exception as e:
-        logger.error(f"Fetch error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/growth/{asin}")
