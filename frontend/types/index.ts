@@ -1,4 +1,4 @@
-// frontend/types/index.ts - REPLACE COMPLETELY
+// frontend/types/index.ts - COMPLETE REPLACEMENT
 export interface ProductInfo {
   title: string | null;
   image_url: string | null;
@@ -32,7 +32,7 @@ export interface Summaries {
 
 export interface Keyword {
   word: string;
-  count: number;
+  frequency: number;
 }
 
 export interface AnalysisResult {
