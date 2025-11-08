@@ -304,10 +304,10 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
               <div className="flex items-start gap-4">
                 {analysis.product_info.image_url && (
                   <img
-                    src={analysis.product_info.image_url}
-                    alt={analysis.product_info.title}
-                    className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border"
-                  />
+  src={analysis.product_info.image_url || ''}
+  alt={analysis.product_info.title || 'Product image'}
+  className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border"
+/>
                 )}
                 <div className="flex-1 min-w-0">
                   <h2 className="text-base sm:text-lg md:text-xl font-bold mb-2">
