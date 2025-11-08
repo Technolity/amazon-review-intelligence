@@ -71,7 +71,7 @@ export default function InsightsPanel({
   const sentimentDist = analysis.sentiment_distribution || { positive: 0, neutral: 0, negative: 0 };
   const themes = analysis.themes || [];
   const keywords = analysis.top_keywords || [];
-  const insights = Array.isArray(analysis.insights) ? analysis.insights : (analysis.insights?.insights || []);
+  const insights: string[] = Array.isArray(analysis.insights) ? analysis.insights as string[] : (analysis.insights?.insights as string[] || []);
   const summary = Array.isArray(analysis.insights) ? 'Analysis complete' : (analysis.insights?.summary || 'Analysis complete');
 
   // Calculate percentages
@@ -264,14 +264,14 @@ export default function InsightsPanel({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1.5 md:space-y-2 px-3 sm:px-4">
-            {insights.slice(0, 4).map((insight, index) => (
-              <div key={index} className="flex gap-1.5 sm:gap-2">
-                <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0 mt-0.5 text-green-500" />
-                <p className="text-[9px] sm:text-[10px] md:text-xs leading-relaxed">
-                  {insight}
-                </p>
-              </div>
-            ))}
+           {insights.slice(0, 4).map((insight: string, index) => (
+  <div key={index} className="flex gap-1.5 sm:gap-2">
+    <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0 mt-0.5 text-green-500" />
+    <p className="text-[9px] sm:text-[10px] md:text-xs leading-relaxed">
+      {insight}
+    </p>
+  </div>
+))}
           </CardContent>
         </Card>
       )}
