@@ -1,4 +1,4 @@
-// frontend/types/index.ts
+// frontend/types/index.ts - REPLACE COMPLETELY
 export interface ProductInfo {
   title: string | null;
   image_url: string | null;
@@ -14,6 +14,8 @@ export interface Review {
   verified: boolean | null;
   sentiment: string | null;
   sentiment_score: number | null;
+  sentiment_confidence?: number | null;
+  verified_purchase?: boolean | null;
 }
 
 export interface ReviewSamples {
@@ -53,13 +55,6 @@ export interface AnalysisResult {
   timestamp: string;
   processing_time: number | null;
   data_source: string;
-}
-
-export interface AnalysisRequest {
-  asin: string;
-  max_reviews: number;
-  enable_ai: boolean;
-  country: string;
 }
 
 export const MAX_REVIEWS_LIMIT = 100;
