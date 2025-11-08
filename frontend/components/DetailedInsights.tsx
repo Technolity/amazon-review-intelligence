@@ -103,21 +103,22 @@ ${url}`);
     let shareUrl = '';
 
     switch (platform) {
-  case 'twitter':
-    shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
-    break;
-  case 'linkedin':
-    shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
-    break;
-  case 'facebook':
-    shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
-    break;
-  case 'email':
-    shareUrl = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text + '
+      case 'twitter':
+        shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+        break;
+      case 'linkedin':
+        shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
+        break;
+      case 'facebook':
+        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+        break;
+      case 'email':
+        shareUrl = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text + '
 
 ' + url)}`;
-    break;
+        break;
     }
+
     if (shareUrl) {
       window.open(shareUrl, '_blank', 'noopener,noreferrer');
     }
@@ -479,4 +480,4 @@ ${url}`);
       </div>
     </main>
   );
-      }
+}
