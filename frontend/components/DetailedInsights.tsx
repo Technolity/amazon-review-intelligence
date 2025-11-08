@@ -64,7 +64,7 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
       }
       
       // Fallback to rating-based filtering
-      const rating = review.rating || review.stars || 0;
+      const rating = review.stars || review.stars || 0;
       
       if (targetSentiment === 'positive') {
         return rating >= 4;
