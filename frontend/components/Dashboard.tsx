@@ -75,15 +75,15 @@ export default function Dashboard() {
         success: result.success,
         total_reviews: result.total_reviews,
         has_reviews: (result.reviews?.length || 0) > 0,
-        data_source: result.data_source || 'unknown',
+        data_source: result.data_source,  // ✅ CORRECT - use result.data_source directly
       });
 
       if (result.success && result.total_reviews > 0) {
         setAnalysis(result);
         
-        const dataSource = result.metadata?.data_source || 'unknown';
+        const dataSource = result.data_source || 'unknown';  // ✅ CORRECT - use result.data_source directly
         const sourceEmoji = dataSource === 'apify' ? '🌐' : dataSource === 'mock' ? '🎭' : '❓';
-        
+
         toast({
           title: `✅ Analysis Complete! ${sourceEmoji}`,
           description: `Found ${result.total_reviews} reviews (Source: ${dataSource.toUpperCase()})`,
