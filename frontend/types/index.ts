@@ -1,38 +1,59 @@
 // ================================================================
 // frontend/types/index.ts
-// COMPLETE VERSION - Matches FIXED_api.ts perfectly
-// Replace your entire types/index.ts with this file
+// COMPLETE AND FULLY SYNCED WITH BACKEND
 // ================================================================
-
-/**
- * TypeScript type definitions for Amazon Review Intelligence
- * These match the backend API response structure exactly
- */
 
 // ================================================================
 // CORE DATA TYPES
 // ================================================================
 
 export interface ProductInfo {
-  title: string | null;
-  image_url: string | null;
-  asin: string | null;
-  average_rating: number | null;
+  title: string;
+  brand?: string;
+  price?: string;
+  image?: string;
+  image_url?: string;
+  rating?: number;
+  total_reviews?: number;
+  asin?: string;
+  url?: string;
+  average_rating?: number;
 }
 
 export interface Review {
-  title: string | null;
-  text: string | null;
-  content?: string | null;        // Added optional content
-  stars: number | null;
-  rating?: number | null;         // Added optional rating
-  author?: string | null;         // Added optional author
-  date: string | null;
-  verified: boolean | null;
-  verified_purchase?: boolean | null; // Added optional verified_purchase
-  sentiment: string | null;
-  sentiment_score: number | null;
-  sentiment_confidence?: number | null; // Added optional sentiment_confidence
+  id: string;
+  rating: number;
+  stars?: number;
+  title: string;
+  text: string;
+  content?: string;
+  author: string;
+  date: string;
+  verified: boolean;
+  verified_purchase?: boolean;
+  helpful_count: number;
+  sentiment?: string;
+  sentiment_confidence?: number;
+  sentiment_score?: number;
+  polarity?: number;
+  subjectivity?: number;
+  emotions?: Record<string, number>;
+  bot_score?: number;
+  is_bot_likely?: boolean;
+  bot_indicators?: string[];
+  images?: string[];
+  variant?: string;
+  country?: string;
+  source?: string;
+  sentiment_analysis?: SentimentAnalysis;
+}
+
+export interface SentimentAnalysis {
+  sentiment: string;
+  vader_compound: float;
+  textblob_polarity: number;
+  confidence: number;
+  subjectivity: number;
 }
 
 export interface ReviewSamples {
@@ -50,7 +71,10 @@ export interface Summaries {
 export interface Keyword {
   word: string;
   count: number;
+  frequency?: number;
   weight?: number;
+  sentiment?: string;
+  size?: number;
 }
 
 export interface Theme {
@@ -59,6 +83,7 @@ export interface Theme {
   mentions: number;
   importance?: number;
   sentiment?: string;
+  fill?: string;
 }
 
 export interface Insights {
@@ -67,45 +92,91 @@ export interface Insights {
   confidence?: string;
 }
 
+export interface EmotionScores {
+  joy: number;
+  sadness: number;
+  anger: number;
+  fear: number;
+  surprise: number;
+  disgust: number;
+  trust: number;
+  anticipation: number;
+}
+
+export interface BotDetectionStats {
+  total_reviews: number;
+  genuine_count: number;
+  bot_count: number;
+  bot_percentage: number;
+  suspicious_count?: number;
+  filtered_count?: number;
+}
+
+export interface AnalysisMetadata {
+  source: string;
+  timestamp: string;
+  processing_time?: number;
+  models_used?: Record<string, string>;
+  data_quality?: {
+    completeness: number;
+    reliability: number;
+    verified_percentage: number;
+  };
+}
+
 // ================================================================
-// MAIN ANALYSIS RESULT (matches backend response exactly)
+// MAIN ANALYSIS RESULT (FLAT STRUCTURE)
 // ================================================================
 
 export interface AnalysisResult {
   // Status
   success: boolean;
   error?: string;
+  error_type?: string;
   
-  // Product information
+  // Product Information
   product_info: ProductInfo | null;
   asin: string;
+  country?: string;
   
-  // Core metrics
+  // Core Metrics
   total_reviews: number;
   average_rating: number;
   
   // Distributions
   rating_distribution: Record<string, number>;
   sentiment_distribution: Record<string, number> | null;
+  aggregate_metrics?: {
+    average_sentiment_score: number;
+    sentiment_consistency: number;
+    rating_variance: number;
+  };
   
   // Reviews
   reviews: Review[];
   review_samples: ReviewSamples | null;
   
-  // AI/NLP results
+  // AI/NLP Results
   ai_enabled: boolean;
+  ai_provider?: string;
   top_keywords: Keyword[] | null;
-  themes: string[] | Theme[] | null;
-  emotions: Record<string, number> | null;  // For radar chart
+  themes: (string | Theme)[] | null;
+  emotions: Record<string, number> | EmotionScores | null;
   summaries: Summaries | null;
   
   // Insights
-  insights: Insights | any | null;
+  insights: Insights | string[] | any | null;
+  summary?: string;
+  
+  // Bot Detection
+  bot_detection?: BotDetectionStats;
   
   // Metadata
   timestamp: string;
   processing_time: number | null;
   data_source: string;
+  metadata?: AnalysisMetadata;
+  models_used?: any;
 }
 
 // ================================================================
@@ -117,6 +188,8 @@ export interface AnalysisRequest {
   max_reviews: number;
   enable_ai: boolean;
   country: string;
+  enable_emotions?: boolean;
+  enable_bot_detection?: boolean;
 }
 
 export interface ReviewFetchRequest {
@@ -126,7 +199,7 @@ export interface ReviewFetchRequest {
 }
 
 // ================================================================
-// RESPONSE WRAPPERS (for API responses)
+// RESPONSE WRAPPERS
 // ================================================================
 
 export interface APIResponse<T = any> {
@@ -134,6 +207,15 @@ export interface APIResponse<T = any> {
   data?: T;
   error?: string;
   error_type?: string;
+  status?: number;
+}
+
+export interface APIError {
+  success: false;
+  error: string;
+  error_type?: string;
+  status?: number;
+  data?: any;
 }
 
 // ================================================================
@@ -163,18 +245,21 @@ export interface ChartDataPoint {
   name: string;
   value: number;
   fill?: string;
+  percentage?: number;
 }
 
-export interface SentimentChartData {
+export interface KeywordChartData {
+  word: string;
+  frequency: number;
+  sentiment?: string;
+  size?: number;
+  fill?: string;
+}
+
+export interface ThemeChartData {
+  theme: string;
+  mentions: number;
   sentiment: string;
-  count: number;
-  percentage: number;
-  fill: string;
-}
-
-export interface RatingChartData {
-  rating: string;
-  count: number;
   fill: string;
 }
 
@@ -184,10 +269,24 @@ export interface EmotionChartData {
   fullMark: number;
 }
 
-export interface KeywordChartData {
-  keyword: string;
-  frequency: number;
+export interface RatingChartData {
+  rating: string;
+  count: number;
+  percentage: number;
   fill: string;
+}
+
+export interface SentimentChartData {
+  name: string;
+  value: number;
+  fill: string;
+}
+
+export interface SentimentTrendData {
+  date: string;
+  positive: number;
+  negative: number;
+  neutral: number;
 }
 
 // ================================================================
@@ -208,6 +307,12 @@ export const SUPPORTED_COUNTRIES = [
   { code: 'AU', label: '🇦🇺 Australia' },
   { code: 'IT', label: '🇮🇹 Italy' },
   { code: 'ES', label: '🇪🇸 Spain' },
+  { code: 'BR', label: '🇧🇷 Brazil' },
+  { code: 'MX', label: '🇲🇽 Mexico' },
+  { code: 'AE', label: '🇦🇪 UAE' },
+  { code: 'SG', label: '🇸🇬 Singapore' },
+  { code: 'NL', label: '🇳🇱 Netherlands' },
+  { code: 'SE', label: '🇸🇪 Sweden' },
 ] as const;
 
 export const SENTIMENT_COLORS = {
@@ -233,26 +338,44 @@ export const RATING_COLORS = {
   '3': '#f59e0b',
   '2': '#fb923c',
   '1': '#ef4444',
+  '5_star': '#10b981',
+  '4_star': '#84cc16',
+  '3_star': '#f59e0b',
+  '2_star': '#fb923c',
+  '1_star': '#ef4444',
+} as const;
+
+export const CHART_COLORS = {
+  primary: '#8b5cf6',
+  secondary: '#ec4899',
+  success: '#10b981',
+  warning: '#f59e0b',
+  danger: '#ef4444',
+  info: '#3b82f6',
+  positive: '#22c55e',
+  neutral: '#eab308',
+  negative: '#ef4444',
+  purple: '#a855f7',
+  pink: '#ec4899',
+  blue: '#3b82f6',
+  cyan: '#06b6d4',
+  teal: '#14b8a6',
+  orange: '#f97316',
+  gradient1: '#8b5cf6',
+  gradient2: '#ec4899',
 } as const;
 
 // ================================================================
 // UTILITY TYPES
 // ================================================================
 
-export interface APIError {
-  success: false;
-  error: string;
-  error_type?: string;
-  status?: number;
-  data?: any;
-}
-
 export type SentimentType = 'positive' | 'negative' | 'neutral';
 export type CountryCode = typeof SUPPORTED_COUNTRIES[number]['code'];
 export type DataSource = 'apify' | 'mock' | 'database' | 'unknown';
+export type EmotionType = keyof typeof EMOTION_COLORS;
 
 // ================================================================
-// HELPER TYPE GUARDS
+// TYPE GUARDS
 // ================================================================
 
 export function isAnalysisResult(obj: any): obj is AnalysisResult {
@@ -275,12 +398,45 @@ export function isAPIError(obj: any): obj is APIError {
   );
 }
 
+export function isReview(obj: any): obj is Review {
+  return (
+    obj &&
+    typeof obj === 'object' &&
+    typeof obj.id === 'string' &&
+    (typeof obj.rating === 'number' || typeof obj.stars === 'number') &&
+    typeof obj.text === 'string'
+  );
+}
+
 // ================================================================
-// EXPORT ALL
+// HELPER FUNCTIONS
+// ================================================================
+
+export function getSentimentColor(sentiment: string): string {
+  const s = sentiment?.toLowerCase();
+  if (s === 'positive') return SENTIMENT_COLORS.positive;
+  if (s === 'negative') return SENTIMENT_COLORS.negative;
+  return SENTIMENT_COLORS.neutral;
+}
+
+export function getRatingColor(rating: number): string {
+  if (rating >= 4.5) return RATING_COLORS['5'];
+  if (rating >= 3.5) return RATING_COLORS['4'];
+  if (rating >= 2.5) return RATING_COLORS['3'];
+  if (rating >= 1.5) return RATING_COLORS['2'];
+  return RATING_COLORS['1'];
+}
+
+export function formatRatingKey(rating: number | string): string {
+  return `${rating}_star`;
+}
+
+// ================================================================
+// EXPORT ALIASES
 // ================================================================
 
 export type {
-  // Re-export for convenience
   ProductInfo as Product,
   ReviewSamples as SampleReviews,
+  EmotionScores as Emotions,
 };
