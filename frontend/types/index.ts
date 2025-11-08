@@ -1,163 +1,112 @@
+// ================================================================
+// frontend/types/index.ts
+// COMPLETE VERSION - Matches FIXED_api.ts perfectly
+// Replace your entire types/index.ts with this file
+// ================================================================
+
 /**
- * Type definitions for Amazon Review Intelligence
- * FIXED VERSION - Added stars property to Review interface
+ * TypeScript type definitions for Amazon Review Intelligence
+ * These match the backend API response structure exactly
  */
 
-// Review types
-export interface Review {
-  id?: string;
-  rating?: number;
-  stars?: number; // ← ADDED: Backend uses both 'rating' and 'stars'
-  title?: string;
-  text?: string;
-  content?: string; // Alias for text (backwards compatibility)
-  author?: string;
-  date?: string;
-  verified?: boolean;
-  verified_purchase?: boolean; // Alias for verified
-  helpful_count?: number;
-  sentiment?: string;
-  sentiment_score?: number;
-  sentiment_confidence?: number;
-  polarity?: number;
-  subjectivity?: number;
-  emotions?: Record<string, number>;
-  bot_score?: number;
-  is_bot_likely?: boolean;
-  bot_indicators?: string[];
-  images?: string[];
-  variant?: string;
-  country?: string;
-  source?: string;
-}
+// ================================================================
+// CORE DATA TYPES
+// ================================================================
 
-// Product information
 export interface ProductInfo {
-  title: string;
-  brand?: string;
-  price?: string;
-  image?: string;
-  rating?: number;
-  total_reviews?: number;
-  asin?: string;
+  title: string | null;
+  image_url: string | null;
+  asin: string | null;
+  average_rating: number | null;
 }
 
-// Sentiment distribution
-export interface SentimentDistribution {
-  positive: number;
-  neutral: number;
-  negative: number;
+export interface Review {
+  title: string | null;
+  text: string | null;
+  stars: number | null;
+  date: string | null;
+  verified: boolean | null;
+  sentiment: string | null;
+  sentiment_score: number | null;
 }
 
-// Rating distribution
-export interface RatingDistribution {
-  '5_star'?: number;
-  '4_star'?: number;
-  '3_star'?: number;
-  '2_star'?: number;
-  '1_star'?: number;
-  '5'?: number; // Backwards compatibility
-  '4'?: number;
-  '3'?: number;
-  '2'?: number;
-  '1'?: number;
+export interface ReviewSamples {
+  positive: Review[];
+  negative: Review[];
+  neutral: Review[];
 }
 
-// Bot detection statistics
-export interface BotDetectionStats {
-  total_reviews: number;
-  genuine_count: number;
-  bot_count: number;
-  bot_percentage: number;
-  suspicious_count?: number;
-  filtered_count?: number;
+export interface Summaries {
+  overall: string;
+  positive_highlights: string;
+  negative_highlights: string;
 }
 
-// Keyword data
 export interface Keyword {
   word: string;
-  frequency: number;
+  count: number;
   weight?: number;
-  sentiment?: string;
 }
 
-// Theme data
 export interface Theme {
   theme: string;
   keywords?: string[];
   mentions: number;
   importance?: number;
   sentiment?: string;
-  avg_rating?: number;
 }
 
-// Insights
 export interface Insights {
-  insights: string[];
-  recommendations?: string[];
   summary: string;
+  insights: string[];
   confidence?: string;
-  metrics?: {
-    total_reviews: number;
-    positive_percentage: number;
-    negative_percentage: number;
-    neutral_percentage: number;
-    average_rating: number;
-  };
 }
 
-// Growth data point
-export interface GrowthDataPoint {
-  date: string;
-  buyers: number;
-  trend: 'up' | 'down' | 'stable';
-  rating?: number;
-  review_velocity?: number;
-}
+// ================================================================
+// MAIN ANALYSIS RESULT (matches backend response exactly)
+// ================================================================
 
-// Analysis metadata
-export interface AnalysisMetadata {
-  asin: string;
-  timestamp: string;
-  data_source: 'apify' | 'mock' | 'unknown';
-  ai_enabled: boolean;
-  total_reviews?: number;
-  processing_time?: string;
-}
-
-// Main analysis result
 export interface AnalysisResult {
+  // Status
   success: boolean;
-  asin?: string;
-  country?: string;
-  product_info?: ProductInfo;
-  reviews?: Review[];
+  error?: string;
+  
+  // Product information
+  product_info: ProductInfo | null;
+  asin: string;
+  
+  // Core metrics
   total_reviews: number;
   average_rating: number;
-  rating_distribution: RatingDistribution;
-  sentiment_distribution?: SentimentDistribution;
-  aggregate_metrics?: {
-    avg_confidence?: number;
-    avg_polarity?: number;
-    avg_subjectivity?: number;
-  };
-  emotions?: Record<string, number>;
-  top_keywords?: Keyword[];
-  themes?: Theme[];
-  insights?: Insights | string[];
-  summary?: string;
-  data_source?: 'apify' | 'mock' | 'unknown';
-  ai_provider?: string;
-  metadata?: AnalysisMetadata;
-  bot_detection?: BotDetectionStats;
-  models_used?: any;
-  error?: string;
-  error_type?: string;
-  timestamp?: string;
-  processing_time?: number;
+  
+  // Distributions
+  rating_distribution: Record<string, number>;
+  sentiment_distribution: Record<string, number> | null;
+  
+  // Reviews
+  reviews: Review[];
+  review_samples: ReviewSamples | null;
+  
+  // AI/NLP results
+  ai_enabled: boolean;
+  top_keywords: Keyword[] | null;
+  themes: string[] | Theme[] | null;
+  emotions: Record<string, number> | null;  // For radar chart
+  summaries: Summaries | null;
+  
+  // Insights
+  insights: Insights | any | null;
+  
+  // Metadata
+  timestamp: string;
+  processing_time: number | null;
+  data_source: string;
 }
 
-// API Request types
+// ================================================================
+// REQUEST TYPES
+// ================================================================
+
 export interface AnalysisRequest {
   asin: string;
   max_reviews: number;
@@ -171,49 +120,21 @@ export interface ReviewFetchRequest {
   country: string;
 }
 
-export interface GrowthRequest {
-  asin: string;
-  period: 'day' | 'week' | 'month' | 'quarter';
-}
+// ================================================================
+// RESPONSE WRAPPERS (for API responses)
+// ================================================================
 
-export interface InsightsRequest {
-  reviews: Review[];
-}
-
-// API Response types
 export interface APIResponse<T = any> {
   success: boolean;
   data?: T;
-  metadata?: AnalysisMetadata;
   error?: string;
   error_type?: string;
 }
 
-export interface GrowthResponse {
-  success: boolean;
-  asin: string;
-  period: string;
-  data: GrowthDataPoint[];
-  metadata?: {
-    timestamp: string;
-    data_points: number;
-  };
-}
+// ================================================================
+// UI STATE TYPES
+// ================================================================
 
-// Export request/response types
-export interface ExportRequest {
-  format: 'pdf' | 'excel' | 'csv';
-  data: AnalysisResult;
-}
-
-export interface ExportResponse {
-  success: boolean;
-  filename?: string;
-  url?: string;
-  error?: string;
-}
-
-// Dashboard state types
 export interface DashboardState {
   analysis: AnalysisResult | null;
   isLoading: boolean;
@@ -222,7 +143,6 @@ export interface DashboardState {
   error: string | null;
 }
 
-// Filter settings
 export interface FilterSettings {
   asin: string;
   maxReviews: number;
@@ -230,9 +150,48 @@ export interface FilterSettings {
   country: string;
 }
 
-// Constants
+// ================================================================
+// CHART DATA TYPES
+// ================================================================
+
+export interface ChartDataPoint {
+  name: string;
+  value: number;
+  fill?: string;
+}
+
+export interface SentimentChartData {
+  sentiment: string;
+  count: number;
+  percentage: number;
+  fill: string;
+}
+
+export interface RatingChartData {
+  rating: string;
+  count: number;
+  fill: string;
+}
+
+export interface EmotionChartData {
+  emotion: string;
+  value: number;
+  fullMark: number;
+}
+
+export interface KeywordChartData {
+  keyword: string;
+  frequency: number;
+  fill: string;
+}
+
+// ================================================================
+// CONSTANTS
+// ================================================================
+
 export const MAX_REVIEWS_LIMIT = 100;
 export const DEFAULT_MAX_REVIEWS = 50;
+
 export const SUPPORTED_COUNTRIES = [
   { code: 'US', label: '🇺🇸 United States' },
   { code: 'UK', label: '🇬🇧 United Kingdom' },
@@ -241,9 +200,40 @@ export const SUPPORTED_COUNTRIES = [
   { code: 'DE', label: '🇩🇪 Germany' },
   { code: 'FR', label: '🇫🇷 France' },
   { code: 'JP', label: '🇯🇵 Japan' },
-];
+  { code: 'AU', label: '🇦🇺 Australia' },
+  { code: 'IT', label: '🇮🇹 Italy' },
+  { code: 'ES', label: '🇪🇸 Spain' },
+] as const;
 
-// Utility type for API errors
+export const SENTIMENT_COLORS = {
+  positive: '#10b981',
+  neutral: '#f59e0b',
+  negative: '#ef4444',
+} as const;
+
+export const EMOTION_COLORS = {
+  joy: '#10b981',
+  trust: '#3b82f6',
+  anticipation: '#8b5cf6',
+  surprise: '#ec4899',
+  sadness: '#64748b',
+  fear: '#f59e0b',
+  anger: '#ef4444',
+  disgust: '#b45309',
+} as const;
+
+export const RATING_COLORS = {
+  '5': '#10b981',
+  '4': '#84cc16',
+  '3': '#f59e0b',
+  '2': '#fb923c',
+  '1': '#ef4444',
+} as const;
+
+// ================================================================
+// UTILITY TYPES
+// ================================================================
+
 export interface APIError {
   success: false;
   error: string;
@@ -251,3 +241,41 @@ export interface APIError {
   status?: number;
   data?: any;
 }
+
+export type SentimentType = 'positive' | 'negative' | 'neutral';
+export type CountryCode = typeof SUPPORTED_COUNTRIES[number]['code'];
+export type DataSource = 'apify' | 'mock' | 'database' | 'unknown';
+
+// ================================================================
+// HELPER TYPE GUARDS
+// ================================================================
+
+export function isAnalysisResult(obj: any): obj is AnalysisResult {
+  return (
+    obj &&
+    typeof obj === 'object' &&
+    typeof obj.success === 'boolean' &&
+    typeof obj.asin === 'string' &&
+    typeof obj.total_reviews === 'number' &&
+    typeof obj.average_rating === 'number'
+  );
+}
+
+export function isAPIError(obj: any): obj is APIError {
+  return (
+    obj &&
+    typeof obj === 'object' &&
+    obj.success === false &&
+    typeof obj.error === 'string'
+  );
+}
+
+// ================================================================
+// EXPORT ALL
+// ================================================================
+
+export type {
+  // Re-export for convenience
+  ProductInfo as Product,
+  ReviewSamples as SampleReviews,
+};
