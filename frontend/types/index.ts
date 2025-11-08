@@ -35,6 +35,13 @@ export interface Keyword {
   frequency: number;
 }
 
+// frontend/types/index.ts - Update Theme and AnalysisResult
+export interface Theme {
+  theme: string;
+  mentions: number;
+  sentiment: string;
+}
+
 export interface AnalysisResult {
   success: boolean;
   error?: string;
@@ -48,7 +55,7 @@ export interface AnalysisResult {
   review_samples: ReviewSamples | null;
   ai_enabled: boolean;
   top_keywords: Keyword[] | null;
-  themes: string[] | null;
+  themes: (string | Theme)[] | null;  // <-- CAN BE EITHER
   emotions: Record<string, number> | null;
   summaries: Summaries | null;
   insights: any;
