@@ -1,4 +1,4 @@
-// frontend/types/index.ts - COMPLETE REPLACEMENT
+// frontend/types/index.ts - COMPLETE FILE
 export interface ProductInfo {
   title: string | null;
   image_url: string | null;
