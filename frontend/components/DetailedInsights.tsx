@@ -410,7 +410,7 @@ ${url}`);
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {insights.length > 0 ? (
-                insights.map((insight, index) => (
+                insights.map((insight: string, index: number) => (
                   <div
                     key={index}
                     className="flex items-start gap-3 p-4 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
