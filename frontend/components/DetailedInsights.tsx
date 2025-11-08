@@ -466,7 +466,7 @@ ${url}`);
                         size === 'small' && "text-xs px-2 py-1"
                       )}
                     >
-                    {keyword.word || 'N/A'}
+                    {keyword.word}
                     </Badge>
                   );
                 })}
