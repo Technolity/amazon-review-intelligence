@@ -302,9 +302,9 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
           <Card className="border-none shadow-xl bg-gradient-to-br from-primary/5 to-background">
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-start gap-4">
-                {analysis.product_info.image && (
+                {analysis.product_info.image_url && (
                   <img
-                    src={analysis.product_info.image}
+                    src={analysis.product_info.image_url}
                     alt={analysis.product_info.title}
                     className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border"
                   />
