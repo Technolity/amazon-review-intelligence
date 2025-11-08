@@ -452,7 +452,7 @@ ${url}`);
             <CardContent>
               <div className="flex flex-wrap gap-2">
                 {keywords.map((keyword, index) => {
-                  const freq = typeof keyword.count === 'number' ? keyword.count : (keyword.frequency ?? 0);
+                  const freq = keyword.frequency ?? 0;
                   const size = freq > 20 ? 'large' : freq > 10 ? 'medium' : 'small';
 
                   return (
@@ -466,7 +466,7 @@ ${url}`);
                         size === 'small' && "text-xs px-2 py-1"
                       )}
                     >
-                      {keyword.word || keyword.keyword || 'N/A'}
+                    {keyword.word || 'N/A'}
                     </Badge>
                   );
                 })}
