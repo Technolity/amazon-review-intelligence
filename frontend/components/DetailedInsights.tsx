@@ -181,7 +181,7 @@ export default function DetailedInsights({ analysis, onBack }: DetailedInsightsP
   // Helper function to render review card
   const renderReviewCard = (review: Review, index: number, bgColor: string) => {
     const reviewRating = review.stars || review.stars || 0;
-    const reviewAuthor = review.author || 'Anonymous';
+    const reviewAuthor = 'Anonymous'; 
     const reviewDate = review.date || 'Unknown date';
     const reviewTitle = review.title || 'No title';
     const reviewText = review.text || review.content || 'No content';
