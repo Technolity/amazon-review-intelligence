@@ -48,7 +48,7 @@ class Review(BaseModel):
 class Keyword(BaseModel):
     """Keyword with frequency"""
     word: str
-    count: int
+    frequency: int  # ✅ Changed from 'count' to 'frequency'
 
 
 class Theme(BaseModel):
