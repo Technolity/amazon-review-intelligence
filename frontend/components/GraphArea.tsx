@@ -239,13 +239,13 @@ export default function GraphArea({ analysis, isLoading, onViewDetails, aiEnable
       };
     }
 
-    // Keywords
-    const keywords: KeywordData[] = (analysis.top_keywords || []).map(kw => ({
-      word: kw.word,
-      frequency: kw.frequency,
-      sentiment: kw.sentiment || 'neutral',
-      size: Math.min(kw.frequency * 5, 100)
-    }));
+    // frontend/components/GraphArea.tsx - Line 240-248 REPLACE
+const keywords: KeywordData[] = (analysis.top_keywords || []).slice(0, 15).map(kw => ({
+  word: kw.word,
+  frequency: kw.frequency,
+  sentiment: 'neutral',
+  size: Math.min(kw.frequency * 5, 100)
+}));
 
     // Themes
     const themes: ThemeData[] = (analysis.themes || []).map((theme, idx) => ({
