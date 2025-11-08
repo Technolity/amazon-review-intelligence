@@ -1,4 +1,4 @@
-// frontend/lib/api.ts
+// frontend/lib/api.ts - COMPLETE FILE
 import axios from 'axios';
 import type { AnalysisResult } from '@/types';
 
@@ -87,10 +87,6 @@ export async function analyzeReviews(params: {
     
     return analysisData;
     
-    export interface Keyword {
-     word: string;
-    frequency: number;
-       }
   } catch (error: any) {
     console.error('❌ Analysis error:', error);
     
