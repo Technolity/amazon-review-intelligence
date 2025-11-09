@@ -238,7 +238,7 @@ export default function Dashboard() {
               onAnalyze={handleAnalyze}
               onReset={handleReset}
               isLoading={isLoading}
-              collapsed={!isMobile && sidebarCollapsed}
+              isCollapsed={!isMobile && sidebarCollapsed}
             />
           )}
         </div>
