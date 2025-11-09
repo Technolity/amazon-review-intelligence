@@ -246,8 +246,8 @@ const keywords: KeywordData[] = (analysis.top_keywords || []).slice(0, 15).map(k
   sentiment: 'neutral',
   size: Math.min(kw.frequency * 5, 100)
 }));
-
-    // Themes
+// frontend/components/GraphArea.tsx - REPLACE Lines 250-260
+// Themes
 const themes: ThemeData[] = (analysis.themes || []).map((theme, idx) => {
   if (typeof theme === 'string') {
     return {
