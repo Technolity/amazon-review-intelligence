@@ -127,22 +127,61 @@ export default function Dashboard() {
   /**
    * Export handler
    */
-  const handleExport = async (format: 'csv' | 'pdf') => {
-    if (!currentAsin || !analysis) {
-      toast({
-        title: 'No Data to Export',
-        description: 'Please analyze a product first',
-        variant: 'destructive',
-      });
-      return;
+  // frontend/components/Dashboard.tsx - ADD this function after handleAnalyze (around line 100)
+
+const handleExport = async (format: 'csv' | 'pdf') => {
+  if (!analysis) {
+    toast({
+      title: '⚠️ No Data',
+      description: 'Please analyze reviews first',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  try {
+    toast({
+      title: `📥 Exporting ${format.toUpperCase()}`,
+      description: 'Preparing your file...',
+    });
+
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    
+    const response = await fetch(`${API_URL}/api/v1/export/${format}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(analysis),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.statusText}`);
     }
 
-    toast({
-      title: '📊 Export Feature',
-      description: `${format.toUpperCase()} export coming soon!`,
-    });
-  };
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `amazon-review-analysis-${analysis.asin}-${Date.now()}.${format}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
 
+    toast({
+      title: '✅ Export Complete',
+      description: `Downloaded ${format.toUpperCase()} file`,
+    });
+  } catch (error) {
+    console.error('Export error:', error);
+    toast({
+      title: '❌ Export Failed',
+      description: 'Unable to export file. Please try again.',
+      variant: 'destructive',
+    });
+  }
+};
   /**
    * Reset handler
    */
@@ -210,22 +249,20 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar - Only pass props it accepts */}
-      <Navbar
-        onExport={handleExport}
-        onToggleSidebar={handleToggleSidebar}
-        sidebarCollapsed={sidebarCollapsed}
-        isMobile={isMobile}
-      />
+     // frontend/components/Dashboard.tsx - UPDATE Navbar component (around line 150)
 
-      {/* Main content area */}
-      <div className="flex flex-col md:flex-row h-auto md:h-[calc(100vh-3.5rem)] overflow-hidden">
-        
-        {/* Mobile overlay */}
-        {isMobile && sidebarMobileOpen && (
-          <div 
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
-            onClick={() => setSidebarMobileOpen(false)}
-          />
+<Navbar 
+  onExport={handleExport}
+  onToggleSidebar={() => {
+    if (isMobile) {
+      setSidebarMobileOpen(!sidebarMobileOpen);
+    } else {
+      setSidebarCollapsed(!sidebarCollapsed);
+    }
+  }}
+  sidebarCollapsed={sidebarCollapsed}
+  isMobile={isMobile}
+/>
         )}
         
         {/* Sidebar */}
