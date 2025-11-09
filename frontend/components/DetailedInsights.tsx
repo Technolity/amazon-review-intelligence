@@ -122,12 +122,11 @@ ${url}`);
     }
   };
 
-  // frontend/components/DetailedInsights.tsx - REPLACE handleExport (around line 86)
 const handleExport = async (format: string) => {
   setIsExporting(true);
   try {
     toast({
-      title: `Exporting as ${format.toUpperCase()}`,
+      title: `📥 Exporting ${format.toUpperCase()}`,
       description: 'Preparing your export file...',
     });
 
@@ -149,7 +148,7 @@ const handleExport = async (format: string) => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `analysis_${analysis.asin}.${format}`;
+    link.download = `detailed-analysis-${analysis.asin}-${Date.now()}.${format}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -157,9 +156,10 @@ const handleExport = async (format: string) => {
 
     toast({
       title: '✅ Export Complete',
-      description: `Downloaded analysis_${analysis.asin}.${format}`,
+      description: `Downloaded ${format.toUpperCase()} file successfully`,
     });
   } catch (error) {
+    console.error('Export error:', error);
     toast({
       title: '❌ Export Failed',
       description: 'Unable to export file. Please try again.',
