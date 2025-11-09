@@ -461,42 +461,101 @@ def extract_emotions(texts: List[str]) -> Dict[str, float]:
     
     return emotion_scores
 
+# backend/main.py - REPLACE extract_themes function (around line 467)
+def extract_themes(texts: List[str], sentiment_counts: dict) -> List[Dict[str, Any]]:
+    """
+    Extract themes from review texts using simple keyword matching
+    Fallback when sklearn is not available
+    """
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.cluster import KMeans
+        
+        if len(texts) < 5:
+            return simple_theme_extraction(texts, sentiment_counts)
+        
+        try:
+            vectorizer = TfidfVectorizer(max_features=50, stop_words='english', ngram_range=(1, 2))
+            tfidf_matrix = vectorizer.fit_transform(texts)
+            
+            n_clusters = min(5, len(texts))
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            kmeans.fit(tfidf_matrix)
+            
+            feature_names = vectorizer.get_feature_names_out()
+            themes = []
+            
+            for cluster_id in range(n_clusters):
+                cluster_center = kmeans.cluster_centers_[cluster_id]
+                top_indices = cluster_center.argsort()[-3:][::-1]
+                theme_words = [feature_names[i] for i in top_indices]
+                theme_name = " ".join(theme_words[:2]).title()
+                
+                cluster_reviews = [texts[i] for i, label in enumerate(kmeans.labels_) if label == cluster_id]
+                mentions = len(cluster_reviews)
+                
+                cluster_sentiments = []
+                for text in cluster_reviews:
+                    for key, reviews in sentiment_counts.items():
+                        if text in reviews:
+                            cluster_sentiments.append(key)
+                            break
+                
+                if cluster_sentiments:
+                    sentiment = max(set(cluster_sentiments), key=cluster_sentiments.count)
+                else:
+                    sentiment = "neutral"
+                
+                themes.append({
+                    "theme": theme_name,
+                    "mentions": mentions,
+                    "sentiment": sentiment
+                })
+            
+            return sorted(themes, key=lambda x: x["mentions"], reverse=True)
+            
+        except Exception as e:
+            logger.warning(f"TF-IDF clustering failed: {e}, using simple extraction")
+            return simple_theme_extraction(texts, sentiment_counts)
+            
+    except ImportError:
+        logger.warning("sklearn not available, using simple theme extraction")
+        return simple_theme_extraction(texts, sentiment_counts)
 
-def extract_themes(texts: List[str], sentiment_counts: Dict[str, int]) -> List[Dict[str, Any]]:
-    """Extract themes with clustering"""
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from collections import Counter
-    import re
-    
-    if not texts or len(texts) < 3:
-        return []
-    
-    # Common product review themes
+
+def simple_theme_extraction(texts: List[str], sentiment_counts: dict) -> List[Dict[str, Any]]:
+    """
+    Simple theme extraction without sklearn
+    """
     theme_keywords = {
-        "Quality": ["quality", "build", "material", "durable", "sturdy", "construction"],
-        "Value": ["price", "value", "worth", "money", "expensive", "cheap", "affordable"],
-        "Performance": ["works", "performance", "fast", "slow", "efficient", "effective"],
-        "Design": ["design", "look", "appearance", "color", "style", "aesthetic"],
-        "Ease of Use": ["easy", "simple", "complicated", "difficult", "user-friendly", "intuitive"],
-        "Customer Service": ["service", "support", "customer", "response", "helpful", "company"],
-        "Shipping": ["shipping", "delivery", "arrived", "packaging", "damaged", "package"],
-        "Features": ["feature", "function", "capability", "option", "settings", "mode"]
+        "Quality": ["quality", "build", "material", "durable", "sturdy", "well made"],
+        "Price": ["price", "expensive", "cheap", "value", "worth", "cost"],
+        "Performance": ["performance", "works", "fast", "slow", "efficient", "speed"],
+        "Delivery": ["delivery", "shipping", "arrived", "packaging", "package"],
+        "Design": ["design", "look", "appearance", "style", "color", "beautiful"],
+        "Size": ["size", "fit", "large", "small", "perfect fit"],
+        "Easy to Use": ["easy", "simple", "convenient", "user friendly", "straightforward"],
     }
     
     themes = []
-    combined_text = " ".join(texts).lower()
+    all_texts_lower = " ".join(texts).lower()
     
     for theme_name, keywords in theme_keywords.items():
-        mentions = sum(combined_text.count(keyword) for keyword in keywords)
+        mentions = sum(1 for text in texts if any(kw in text.lower() for kw in keywords))
+        
         if mentions > 0:
-            # Determine theme sentiment based on context
-            positive_context = sum(1 for k in keywords if any(pos in combined_text for pos in ["good", "great", "excellent", "love"]))
-            negative_context = sum(1 for k in keywords if any(neg in combined_text for neg in ["bad", "poor", "terrible", "hate"]))
+            # Determine sentiment for this theme
+            theme_texts = [text for text in texts if any(kw in text.lower() for kw in keywords)]
+            theme_sentiments = []
             
-            if positive_context > negative_context:
-                sentiment = "positive"
-            elif negative_context > positive_context:
-                sentiment = "negative"
+            for text in theme_texts:
+                for sentiment, reviews in sentiment_counts.items():
+                    if text in reviews:
+                        theme_sentiments.append(sentiment)
+                        break
+            
+            if theme_sentiments:
+                sentiment = max(set(theme_sentiments), key=theme_sentiments.count)
             else:
                 sentiment = "neutral"
             
@@ -506,9 +565,7 @@ def extract_themes(texts: List[str], sentiment_counts: Dict[str, int]) -> List[D
                 "sentiment": sentiment
             })
     
-    # Sort by mentions
-    themes.sort(key=lambda x: x["mentions"], reverse=True)
-    return themes[:8]  # Top 8 themes
+    return sorted(themes, key=lambda x: x["mentions"], reverse=True)[:5]
 
 
 def generate_summaries(reviews: List[Dict], sentiment_counts: Dict[str, int], 
