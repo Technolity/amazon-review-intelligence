@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import Navbar from './Navbar';
 import SidebarFilters from './SidebarFilters';
@@ -38,9 +37,6 @@ export default function Dashboard() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  /**
-   * Main analysis handler - FIXED with proper data extraction
-   */
   const handleAnalyze = async (
     asin: string, 
     maxReviews: number, 
@@ -52,7 +48,6 @@ export default function Dashboard() {
     setShowDetailedView(false);
     setAiEnabled(enableAI);
     
-    // Auto-hide sidebar on mobile after search
     if (isMobile) {
       setSidebarMobileOpen(false);
     }
@@ -63,7 +58,6 @@ export default function Dashboard() {
         description: `Processing up to ${maxReviews} reviews for ASIN: ${asin}`,
       });
 
-      // Call the FIXED analyzeReviews function from api.ts
       const result = await analyzeReviews({
         asin: asin,
         max_reviews: maxReviews,
@@ -75,47 +69,34 @@ export default function Dashboard() {
         success: result.success,
         total_reviews: result.total_reviews,
         has_reviews: (result.reviews?.length || 0) > 0,
-        data_source: result.data_source,  // ✅ CORRECT - use result.data_source directly
+        data_source: result.data_source,
       });
 
       if (result.success && result.total_reviews > 0) {
         setAnalysis(result);
         
-        const dataSource = result.data_source || 'unknown';  // ✅ CORRECT - use result.data_source directly
+        const dataSource = result.data_source || 'unknown';
         const sourceEmoji = dataSource === 'apify' ? '🌐' : dataSource === 'mock' ? '🎭' : '❓';
 
         toast({
-          title: `✅ Analysis Complete! ${sourceEmoji}`,
-          description: `Found ${result.total_reviews} reviews (Source: ${dataSource.toUpperCase()})`,
-          duration: 4000,
+          title: `✅ Analysis Complete!`,
+          description: `${sourceEmoji} Analyzed ${result.total_reviews} reviews from ${dataSource}`,
         });
-        
-        // Scroll to top on mobile to show results
-        if (isMobile) {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-      } else if (result.success && result.total_reviews === 0) {
+      } else {
         toast({
           title: '⚠️ No Reviews Found',
-          description: 'This product has no reviews available. Try a different ASIN.',
+          description: `No reviews available for ASIN: ${asin}. Try a different product.`,
           variant: 'destructive',
-          duration: 5000,
         });
-        setAnalysis(null);
-      } else {
-        throw new Error('Analysis returned no data');
       }
-      
     } catch (error: any) {
-      console.error('❌ Analysis failed:', error);
-      
+      console.error('❌ Analysis error:', error);
       const errorMessage = formatErrorMessage(error);
       
       toast({
         title: '❌ Analysis Failed',
         description: errorMessage,
         variant: 'destructive',
-        duration: 6000,
       });
       
       setAnalysis(null);
@@ -124,215 +105,189 @@ export default function Dashboard() {
     }
   };
 
-  /**
-   * Export handler
-   */
-  // frontend/components/Dashboard.tsx - ADD this function after handleAnalyze (around line 100)
-
-const handleExport = async (format: 'csv' | 'pdf') => {
-  if (!analysis) {
-    toast({
-      title: '⚠️ No Data',
-      description: 'Please analyze reviews first',
-      variant: 'destructive',
-    });
-    return;
-  }
-
-  try {
-    toast({
-      title: `📥 Exporting ${format.toUpperCase()}`,
-      description: 'Preparing your file...',
-    });
-
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    
-    const response = await fetch(`${API_URL}/api/v1/export/${format}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(analysis),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.statusText}`);
+  const handleExport = async (format: 'csv' | 'pdf') => {
+    if (!analysis) {
+      toast({
+        title: '⚠️ No Data',
+        description: 'Please analyze reviews first',
+        variant: 'destructive',
+      });
+      return;
     }
 
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `amazon-review-analysis-${analysis.asin}-${Date.now()}.${format}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    try {
+      toast({
+        title: `📥 Exporting ${format.toUpperCase()}`,
+        description: 'Preparing your file...',
+      });
 
-    toast({
-      title: '✅ Export Complete',
-      description: `Downloaded ${format.toUpperCase()} file`,
-    });
-  } catch (error) {
-    console.error('Export error:', error);
-    toast({
-      title: '❌ Export Failed',
-      description: 'Unable to export file. Please try again.',
-      variant: 'destructive',
-    });
-  }
-};
-  /**
-   * Reset handler
-   */
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      
+      const response = await fetch(`${API_URL}/api/v1/export/${format}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(analysis),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Export failed: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `amazon-review-analysis-${analysis.asin}-${Date.now()}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: '✅ Export Complete',
+        description: `Downloaded ${format.toUpperCase()} file`,
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: '❌ Export Failed',
+        description: 'Unable to export file. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleReset = () => {
     setAnalysis(null);
     setCurrentAsin('');
     setShowDetailedView(false);
-    setMobileAsin('');
+    setIsLoading(false);
     
     toast({
-      title: '🔄 Dashboard Reset',
-      description: 'Ready for a new analysis',
+      title: '🔄 Reset Complete',
+      description: 'Ready for new analysis',
     });
   };
 
-  /**
-   * Toggle sidebar
-   */
-  const handleToggleSidebar = () => {
-    if (isMobile) {
-      setSidebarMobileOpen(!sidebarMobileOpen);
-    } else {
-      setSidebarCollapsed(!sidebarCollapsed);
-    }
-  };
-
-  /**
-   * Show detailed view
-   */
   const handleShowDetails = () => {
     if (analysis) {
       setShowDetailedView(true);
-      if (isMobile) {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
     }
   };
 
-  /**
-   * Back to overview
-   */
-  const handleBackToOverview = () => {
+  const handleBackFromDetails = () => {
     setShowDetailedView(false);
   };
 
-  // Detailed view
   if (showDetailedView && analysis) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar
+      <div className="min-h-screen flex flex-col bg-background">
+        <Navbar 
           onExport={handleExport}
-          onToggleSidebar={handleToggleSidebar}
+          onToggleSidebar={() => {
+            if (isMobile) {
+              setSidebarMobileOpen(!sidebarMobileOpen);
+            } else {
+              setSidebarCollapsed(!sidebarCollapsed);
+            }
+          }}
           sidebarCollapsed={sidebarCollapsed}
           isMobile={isMobile}
         />
         <DetailedInsights 
           analysis={analysis} 
-          onBack={handleBackToOverview}
+          onBack={handleBackFromDetails}
         />
       </div>
     );
   }
 
-  // Main dashboard layout
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navbar - Only pass props it accepts */}
-     // frontend/components/Dashboard.tsx - UPDATE Navbar component (around line 150)
+    <div className="min-h-screen flex flex-col bg-background">
+      <Navbar 
+        onExport={handleExport}
+        onToggleSidebar={() => {
+          if (isMobile) {
+            setSidebarMobileOpen(!sidebarMobileOpen);
+          } else {
+            setSidebarCollapsed(!sidebarCollapsed);
+          }
+        }}
+        sidebarCollapsed={sidebarCollapsed}
+        isMobile={isMobile}
+      />
 
-<Navbar 
-  onExport={handleExport}
-  onToggleSidebar={() => {
-    if (isMobile) {
-      setSidebarMobileOpen(!sidebarMobileOpen);
-    } else {
-      setSidebarCollapsed(!sidebarCollapsed);
-    }
-  }}
-  sidebarCollapsed={sidebarCollapsed}
-  isMobile={isMobile}
-/>
-        )}
-        
-        {/* Sidebar */}
-        <div 
+      <div className="flex-1 flex overflow-hidden">
+        <div
           className={cn(
-            "md:relative md:h-full",
-            isMobile ? [
-              "fixed inset-y-0 left-0 z-50 w-80 bg-background shadow-xl",
-              "transform transition-transform duration-300 ease-in-out",
-              sidebarMobileOpen ? "translate-x-0" : "-translate-x-full"
-            ] : [
-              "transition-all duration-300 ease-in-out border-r bg-background",
-              sidebarCollapsed ? "w-16" : "w-80"
-            ]
+            "fixed inset-y-0 left-0 z-40 flex-shrink-0 bg-background border-r transition-all duration-300 ease-in-out",
+            "lg:relative lg:z-0",
+            isMobile
+              ? sidebarMobileOpen
+                ? "translate-x-0 w-full sm:w-80"
+                : "-translate-x-full w-0"
+              : sidebarCollapsed
+              ? "w-0 lg:w-16"
+              : "w-80"
           )}
         >
-          <SidebarFilters
-            onAnalyze={handleAnalyze}
-            onReset={handleReset}
-            isLoading={isLoading}
-            isCollapsed={!isMobile && sidebarCollapsed}
-            onToggleCollapse={handleToggleSidebar}
-            mobileOpen={sidebarMobileOpen}
-            isMobile={isMobile}
-          />
+          {(isMobile ? sidebarMobileOpen : true) && (
+            <SidebarFilters
+              onAnalyze={handleAnalyze}
+              onReset={handleReset}
+              isLoading={isLoading}
+              collapsed={!isMobile && sidebarCollapsed}
+            />
+          )}
         </div>
 
-        {/* Content wrapper */}
+        {isMobile && sidebarMobileOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+            onClick={() => setSidebarMobileOpen(false)}
+          />
+        )}
+
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          
-          {/* Graph area */}
-          <div className="flex-1 overflow-auto bg-muted/30">
-            
-            {/* Mobile quick search */}
+          <div className={cn(
+            "flex-1 flex flex-col min-h-0 overflow-auto",
+            "bg-gradient-to-br from-background via-background to-muted/20"
+          )}>
             {!analysis && !isLoading && (
-              <div className="sm:hidden p-4 bg-background border-b">
-                <h2 className="text-sm font-semibold mb-3">Quick Analysis</h2>
+              <div className="flex-1 flex items-center justify-center p-4">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    const cleanAsin = mobileAsin.trim().toUpperCase();
-                    if (cleanAsin.length === 10) {
-                      handleAnalyze(cleanAsin, 50, true, 'US');
+                    if (mobileAsin.trim()) {
+                      handleAnalyze(mobileAsin.trim(), 50, true, 'US');
                     }
                   }}
-                  className="space-y-3"
+                  className="w-full max-w-md space-y-4"
                 >
-                  <div>
-                    <input
-                      type="text"
-                      inputMode="text"
-                      placeholder="Enter ASIN (e.g., B0CHX3TYK1)"
-                      value={mobileAsin}
-                      onChange={(e) => setMobileAsin(e.target.value.toUpperCase())}
-                      maxLength={10}
-                      className="w-full border rounded-md px-3 h-10 font-mono text-sm"
-                      disabled={isLoading}
-                    />
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      10-character Amazon product ID
+                  <div className="text-center space-y-2 mb-6">
+                    <h2 className="text-2xl font-bold">Start Analysis</h2>
+                    <p className="text-muted-foreground text-sm">
+                      Enter an Amazon ASIN or use the sidebar filters
                     </p>
                   </div>
-
-                  <button
-                    type="submit"
-                    className="w-full h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60"
-                    disabled={isLoading || mobileAsin.length !== 10}
-                  >
-                    {isLoading ? 'Analyzing…' : 'Analyze Reviews'}
-                  </button>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={mobileAsin}
+                      onChange={(e) => setMobileAsin(e.target.value)}
+                      placeholder="Enter Amazon ASIN"
+                      className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isLoading || !mobileAsin.trim()}
+                      className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isLoading ? 'Analyzing…' : 'Analyze Reviews'}
+                    </button>
+                  </div>
                 </form>
               </div>
             )}
@@ -345,7 +300,6 @@ const handleExport = async (format: 'csv' | 'pdf') => {
             />
           </div>
 
-          {/* Insights panel */}
           <div className={cn(
             "w-full lg:w-96 border-t lg:border-t-0 lg:border-l bg-background overflow-auto",
             "min-h-[400px] lg:min-h-0"
