@@ -89,23 +89,36 @@ interface SentimentPieData {
   fill: string;
 }
 
-// Custom Tooltips
+// frontend/components/GraphArea.tsx - REPLACE Custom Tooltip Components (around line 93-150)
+
 const KeywordTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-background border border-border rounded-lg p-2 md:p-3 shadow-lg">
-        <p className="font-semibold text-xs sm:text-sm md:text-base text-foreground">{payload[0].payload.word}</p>
-        <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground">
-          Mentioned {payload[0].payload.frequency} times
+      <div className="bg-card/95 backdrop-blur-sm border border-border rounded-lg p-2 md:p-3 shadow-xl">
+        <p className="font-semibold text-xs sm:text-sm text-foreground">{payload[0].payload.word}</p>
+        <p className="text-[10px] sm:text-xs text-muted-foreground">
+          {payload[0].payload.frequency} mentions
         </p>
-        <div className="flex items-center gap-1 mt-1">
+      </div>
+    );
+  }
+  return null;
+};
+
+const ThemeTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-card/95 backdrop-blur-sm border border-border rounded-lg p-2 md:p-3 shadow-xl">
+        <p className="font-semibold text-xs sm:text-sm text-foreground">{payload[0].payload.theme}</p>
+        <p className="text-[10px] sm:text-xs text-muted-foreground">
+          {payload[0].payload.mentions} mentions
+        </p>
+        <div className="flex items-center gap-1.5 mt-1">
           <div
-            className="w-2 h-2 md:w-3 md:h-3 rounded-full"
+            className="w-2 h-2 rounded-full"
             style={{ backgroundColor: payload[0].fill }}
           />
-          <span className="text-[9px] sm:text-[10px] md:text-xs capitalize">
-            {payload[0].payload.sentiment || 'neutral'} sentiment
-          </span>
+          <span className="text-[10px] sm:text-xs capitalize">{payload[0].payload.sentiment}</span>
         </div>
       </div>
     );
@@ -116,10 +129,10 @@ const KeywordTooltip = ({ active, payload }: any) => {
 const EmotionTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-background border border-border rounded-lg p-3 shadow-xl">
-        <p className="font-semibold text-sm mb-1">{payload[0].payload.emotion}</p>
-        <p className="text-xs text-muted-foreground">
-          Intensity: <span className="font-bold text-primary">{(payload[0].value * 100).toFixed(1)}%</span>
+      <div className="bg-card/95 backdrop-blur-sm border border-border rounded-lg p-2 md:p-3 shadow-xl">
+        <p className="font-semibold text-xs sm:text-sm text-foreground capitalize">{payload[0].payload.emotion}</p>
+        <p className="text-[10px] sm:text-xs text-muted-foreground">
+          {(payload[0].payload.value * 100).toFixed(0)}% intensity
         </p>
       </div>
     );
@@ -130,20 +143,16 @@ const EmotionTooltip = ({ active, payload }: any) => {
 const RatingTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-background border border-border rounded-lg p-3 shadow-xl">
-        <p className="font-semibold text-sm">{payload[0].payload.rating} Stars</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Count: <span className="font-bold">{payload[0].payload.count}</span>
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Percentage: <span className="font-bold text-primary">{payload[0].payload.percentage.toFixed(1)}%</span>
+      <div className="bg-card/95 backdrop-blur-sm border border-border rounded-lg p-2 md:p-3 shadow-xl">
+        <p className="font-semibold text-xs sm:text-sm text-foreground">{payload[0].payload.rating}</p>
+        <p className="text-[10px] sm:text-xs text-muted-foreground">
+          {payload[0].payload.count} reviews ({payload[0].payload.percentage.toFixed(1)}%)
         </p>
       </div>
     );
   }
   return null;
 };
-
 const SentimentTrendTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -536,7 +545,7 @@ const themes: ThemeData[] = (analysis.themes || []).map((theme, idx) => {
                           tick={{ fontSize: isMobile ? 8 : isTablet ? 9 : 10 }}
                         />
                         <YAxis tick={{ fontSize: isMobile ? 9 : isTablet ? 10 : 12 }} />
-                        <Tooltip content={<KeywordTooltip />} />
+                       <Tooltip content={<KeywordTooltip />} cursor={false} />
                         <Bar dataKey="frequency" radius={[8, 8, 0, 0]} shape={<AnimatedBar />}>
                           {keywordData.slice(0, 10).map((entry, index) => (
                             <Cell
@@ -575,7 +584,7 @@ const themes: ThemeData[] = (analysis.themes || []).map((theme, idx) => {
                           tick={{ fontSize: isMobile ? 8 : isTablet ? 9 : 10 }}
                         />
                         <YAxis tick={{ fontSize: isMobile ? 9 : isTablet ? 10 : 12 }} />
-                        <Tooltip />
+                        <Tooltip content={<KeywordTooltip />} cursor={false} />
                         <Bar dataKey="mentions" radius={[8, 8, 0, 0]} shape={<AnimatedBar />}>
                           {themeData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -594,97 +603,65 @@ const themes: ThemeData[] = (analysis.themes || []).map((theme, idx) => {
             <div className="grid grid-cols-1 gap-3 sm:gap-4 md:gap-6">
               {/* Sentiment Trend */}
               {sentimentTrendData.length > 0 && (
-                <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300">
-                  <CardHeader className="p-3 sm:p-4 md:p-6">
-                    <div className="flex items-start justify-between gap-2 flex-wrap">
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-xs sm:text-sm md:text-base lg:text-lg flex items-center gap-2">
-                          <Activity className="h-4 w-4 md:h-5 md:w-5 text-primary" />
-                          Sentiment Trends Over Time
-                        </CardTitle>
-                        <CardDescription className="text-[10px] sm:text-xs md:text-sm mt-1">
-                          Track sentiment changes across reviews
-                        </CardDescription>
-                      </div>
-                      <div className="flex gap-2 sm:gap-3 items-center flex-wrap">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-3 h-3 rounded-full bg-green-500" />
-                          <span className="text-[10px] sm:text-xs text-muted-foreground">Positive</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                          <span className="text-[10px] sm:text-xs text-muted-foreground">Neutral</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-3 h-3 rounded-full bg-red-500" />
-                          <span className="text-[10px] sm:text-xs text-muted-foreground">Negative</span>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
-                    <ResponsiveContainer width="100%" height={isMobile ? 280 : isTablet ? 340 : 400}>
-                      <LineChart data={sentimentTrendData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-                        <defs>
-                          <linearGradient id="colorPositive" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={COLORS.positive} stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor={COLORS.positive} stopOpacity={0}/>
-                          </linearGradient>
-                          <linearGradient id="colorNegative" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={COLORS.negative} stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor={COLORS.negative} stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-muted/20" />
-                        <XAxis
-                          dataKey="date"
-                          tick={{ fontSize: isMobile ? 9 : isTablet ? 10 : 11 }}
-                          angle={isMobile ? -25 : 0}
-                          textAnchor={isMobile ? "end" : "middle"}
-                          height={isMobile ? 50 : 30}
-                        />
-                        <YAxis tick={{ fontSize: isMobile ? 9 : isTablet ? 10 : 12 }} />
-                        <Tooltip content={<SentimentTrendTooltip />} />
-                        <Legend wrapperStyle={{ fontSize: isMobile ? 10 : isTablet ? 11 : 12 }} iconType="line" />
-                        <Line
-                          type="monotone"
-                          dataKey="positive"
-                          stroke={COLORS.positive}
-                          strokeWidth={hoveredLine === 'positive' ? 4 : 3}
-                          dot={{ fill: COLORS.positive, r: 4 }}
-                          activeDot={<ActiveDot />}
-                          fill="url(#colorPositive)"
-                          onMouseEnter={() => setHoveredLine('positive')}
-                          onMouseLeave={() => setHoveredLine(null)}
-                          name="Positive"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="negative"
-                          stroke={COLORS.negative}
-                          strokeWidth={hoveredLine === 'negative' ? 4 : 3}
-                          dot={{ fill: COLORS.negative, r: 4 }}
-                          activeDot={<ActiveDot />}
-                          fill="url(#colorNegative)"
-                          onMouseEnter={() => setHoveredLine('negative')}
-                          onMouseLeave={() => setHoveredLine(null)}
-                          name="Negative"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="neutral"
-                          stroke={COLORS.neutral}
-                          strokeWidth={hoveredLine === 'neutral' ? 4 : 3}
-                          dot={{ fill: COLORS.neutral, r: 4 }}
-                          activeDot={<ActiveDot />}
-                          onMouseEnter={() => setHoveredLine('neutral')}
-                          onMouseLeave={() => setHoveredLine(null)}
-                          name="Neutral"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+               // frontend/components/GraphArea.tsx - REPLACE Sentiment Trend Chart (around line 500-530)
+<Card className="border-0 shadow-lg hover:shadow-xl transition-all bg-card/50 backdrop-blur">
+  <CardHeader className="pb-2 md:pb-3 px-3 sm:px-4 md:px-6">
+    <CardTitle className="text-xs sm:text-sm md:text-base font-semibold flex items-center gap-2">
+      <Activity className="h-3 w-3 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
+      Sentiment Trends
+    </CardTitle>
+  </CardHeader>
+  <CardContent className="px-2 sm:px-3 md:px-6 pb-2 sm:pb-3 md:pb-4">
+    <ResponsiveContainer width="100%" height={200} className="md:h-[250px]">
+      <LineChart data={sentimentTrendData}>
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+        <XAxis 
+          dataKey="date" 
+          stroke="hsl(var(--muted-foreground))"
+          tick={{ fontSize: 10 }}
+          className="sm:text-xs"
+        />
+        <YAxis 
+          stroke="hsl(var(--muted-foreground))"
+          tick={{ fontSize: 10 }}
+          className="sm:text-xs"
+        />
+        <Tooltip content={<KeywordTooltip />} cursor={false} />
+        <Legend 
+          wrapperStyle={{ fontSize: '10px' }}
+          className="sm:text-xs"
+        />
+        <Line 
+          type="monotone" 
+          dataKey="positive" 
+          stroke={COLORS.positive} 
+          strokeWidth={2}
+          dot={{ fill: COLORS.positive, r: 3 }}
+          activeDot={{ r: 5 }}
+          name="Positive"
+        />
+        <Line 
+          type="monotone" 
+          dataKey="neutral" 
+          stroke={COLORS.neutral} 
+          strokeWidth={2}
+          dot={{ fill: COLORS.neutral, r: 3 }}
+          activeDot={{ r: 5 }}
+          name="Neutral"
+        />
+        <Line 
+          type="monotone" 
+          dataKey="negative" 
+          stroke={COLORS.negative} 
+          strokeWidth={2}
+          dot={{ fill: COLORS.negative, r: 3 }}
+          activeDot={{ r: 5 }}
+          name="Negative"
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  </CardContent>
+</Card>
               )}
             </div>
           </TabsContent>
@@ -727,7 +704,7 @@ const themes: ThemeData[] = (analysis.themes || []).map((theme, idx) => {
                           domain={[0, 1]}
                           tick={{ fontSize: isMobile ? 8 : 9 }}
                         />
-                        <Tooltip content={<EmotionTooltip />} />
+                       <Tooltip content={<KeywordTooltip />} cursor={false} />
                         <Radar
                           name="Emotion Intensity"
                           dataKey="value"
