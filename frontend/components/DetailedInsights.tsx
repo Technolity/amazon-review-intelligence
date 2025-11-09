@@ -301,7 +301,6 @@ const handleExport = async (format: string) => {
         <Separator />
 
         {/* Product Info */}
-        // frontend/components/DetailedInsights.tsx - REPLACE lines around 229-235
 {analysis.product_info && (
   <Card className="border-none shadow-xl bg-gradient-to-br from-primary/5 to-background">
     <CardContent className="p-4 sm:p-6">
