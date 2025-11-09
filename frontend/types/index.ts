@@ -1,4 +1,4 @@
-// frontend/types/index.ts - COMPLETE FILE
+// frontend/types/index.ts - COMPLETE REPLACEMENT
 export interface ProductInfo {
   title: string | null;
   image_url: string | null;
@@ -35,7 +35,6 @@ export interface Keyword {
   frequency: number;
 }
 
-// frontend/types/index.ts - Update Theme and AnalysisResult
 export interface Theme {
   theme: string;
   mentions: number;
@@ -55,7 +54,7 @@ export interface AnalysisResult {
   review_samples: ReviewSamples | null;
   ai_enabled: boolean;
   top_keywords: Keyword[] | null;
-  themes: (string | Theme)[] | null;  // <-- CAN BE EITHER
+  themes: (string | Theme)[] | null;
   emotions: Record<string, number> | null;
   summaries: Summaries | null;
   insights: any;
