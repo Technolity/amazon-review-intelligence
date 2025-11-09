@@ -523,9 +523,12 @@ def extract_themes(texts: List[str], sentiment_counts: dict) -> List[Dict[str, A
         return simple_theme_extraction(texts, sentiment_counts)
 
 
+# backend/main.py - REPLACE simple_theme_extraction function (around line 524)
+
 def simple_theme_extraction(texts: List[str], sentiment_counts: dict) -> List[Dict[str, Any]]:
     """
     Simple theme extraction without sklearn
+    Fixed version - sentiment_counts contains review counts not review texts
     """
     theme_keywords = {
         "Quality": ["quality", "build", "material", "durable", "sturdy", "well made"],
@@ -538,22 +541,36 @@ def simple_theme_extraction(texts: List[str], sentiment_counts: dict) -> List[Di
     }
     
     themes = []
-    all_texts_lower = " ".join(texts).lower()
     
     for theme_name, keywords in theme_keywords.items():
+        # Count mentions of this theme
         mentions = sum(1 for text in texts if any(kw in text.lower() for kw in keywords))
         
         if mentions > 0:
-            # Determine sentiment for this theme
+            # Find reviews that mention this theme
             theme_texts = [text for text in texts if any(kw in text.lower() for kw in keywords)]
+            
+            # Determine sentiment for this theme by checking sentiment of reviews
             theme_sentiments = []
+            for theme_text in theme_texts:
+                # Check which sentiment category this text belongs to
+                text_lower = theme_text.lower()
+                
+                # Simple sentiment detection based on keywords
+                positive_words = ['great', 'good', 'excellent', 'amazing', 'love', 'perfect', 'best']
+                negative_words = ['bad', 'poor', 'terrible', 'waste', 'don\'t', 'not', 'disappointed']
+                
+                positive_count = sum(1 for word in positive_words if word in text_lower)
+                negative_count = sum(1 for word in negative_words if word in text_lower)
+                
+                if positive_count > negative_count:
+                    theme_sentiments.append('positive')
+                elif negative_count > positive_count:
+                    theme_sentiments.append('negative')
+                else:
+                    theme_sentiments.append('neutral')
             
-            for text in theme_texts:
-                for sentiment, reviews in sentiment_counts.items():
-                    if text in reviews:
-                        theme_sentiments.append(sentiment)
-                        break
-            
+            # Get most common sentiment
             if theme_sentiments:
                 sentiment = max(set(theme_sentiments), key=theme_sentiments.count)
             else:
