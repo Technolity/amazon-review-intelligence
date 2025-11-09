@@ -464,71 +464,56 @@ def extract_emotions(texts: List[str]) -> Dict[str, float]:
 # backend/main.py - REPLACE extract_themes function (around line 467)
 def extract_themes(texts: List[str], sentiment_counts: dict) -> List[Dict[str, Any]]:
     """
-    Extract themes from review texts using simple keyword matching
-    Fallback when sklearn is not available
+    Extract themes from review texts using sklearn clustering
     """
     try:
         from sklearn.feature_extraction.text import TfidfVectorizer
         from sklearn.cluster import KMeans
         
         if len(texts) < 5:
-            return simple_theme_extraction(texts, sentiment_counts)
+            return simple_theme_extraction(texts)
         
-        try:
-            vectorizer = TfidfVectorizer(max_features=50, stop_words='english', ngram_range=(1, 2))
-            tfidf_matrix = vectorizer.fit_transform(texts)
+        vectorizer = TfidfVectorizer(max_features=50, stop_words='english', ngram_range=(1, 2))
+        tfidf_matrix = vectorizer.fit_transform(texts)
+        
+        n_clusters = min(5, len(texts))
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        kmeans.fit(tfidf_matrix)
+        
+        feature_names = vectorizer.get_feature_names_out()
+        themes = []
+        
+        for cluster_id in range(n_clusters):
+            cluster_center = kmeans.cluster_centers_[cluster_id]
+            top_indices = cluster_center.argsort()[-3:][::-1]
+            theme_words = [feature_names[i] for i in top_indices]
+            theme_name = " ".join(theme_words[:2]).title()
             
-            n_clusters = min(5, len(texts))
-            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-            kmeans.fit(tfidf_matrix)
+            mentions = sum(1 for label in kmeans.labels_ if label == cluster_id)
             
-            feature_names = vectorizer.get_feature_names_out()
-            themes = []
+            # Simple sentiment detection
+            sentiment = "neutral"
+            if "good" in theme_name.lower() or "great" in theme_name.lower():
+                sentiment = "positive"
+            elif "bad" in theme_name.lower() or "poor" in theme_name.lower():
+                sentiment = "negative"
             
-            for cluster_id in range(n_clusters):
-                cluster_center = kmeans.cluster_centers_[cluster_id]
-                top_indices = cluster_center.argsort()[-3:][::-1]
-                theme_words = [feature_names[i] for i in top_indices]
-                theme_name = " ".join(theme_words[:2]).title()
-                
-                cluster_reviews = [texts[i] for i, label in enumerate(kmeans.labels_) if label == cluster_id]
-                mentions = len(cluster_reviews)
-                
-                cluster_sentiments = []
-                for text in cluster_reviews:
-                    for key, reviews in sentiment_counts.items():
-                        if text in reviews:
-                            cluster_sentiments.append(key)
-                            break
-                
-                if cluster_sentiments:
-                    sentiment = max(set(cluster_sentiments), key=cluster_sentiments.count)
-                else:
-                    sentiment = "neutral"
-                
-                themes.append({
-                    "theme": theme_name,
-                    "mentions": mentions,
-                    "sentiment": sentiment
-                })
-            
-            return sorted(themes, key=lambda x: x["mentions"], reverse=True)
-            
-        except Exception as e:
-            logger.warning(f"TF-IDF clustering failed: {e}, using simple extraction")
-            return simple_theme_extraction(texts, sentiment_counts)
-            
-    except ImportError:
-        logger.warning("sklearn not available, using simple theme extraction")
-        return simple_theme_extraction(texts, sentiment_counts)
+            themes.append({
+                "theme": theme_name,
+                "mentions": mentions,
+                "sentiment": sentiment
+            })
+        
+        return sorted(themes, key=lambda x: x["mentions"], reverse=True)
+        
+    except Exception as e:
+        logger.warning(f"sklearn clustering failed: {e}, using simple extraction")
+        return simple_theme_extraction(texts)
 
 
-# backend/main.py - REPLACE simple_theme_extraction function (around line 524)
-
-def simple_theme_extraction(texts: List[str], sentiment_counts: dict) -> List[Dict[str, Any]]:
+def simple_theme_extraction(texts: List[str]) -> List[Dict[str, Any]]:
     """
-    Simple theme extraction without sklearn
-    Fixed version - sentiment_counts contains review counts not review texts
+    Simple theme extraction without sklearn - FIXED
     """
     theme_keywords = {
         "Quality": ["quality", "build", "material", "durable", "sturdy", "well made"],
@@ -543,38 +528,28 @@ def simple_theme_extraction(texts: List[str], sentiment_counts: dict) -> List[Di
     themes = []
     
     for theme_name, keywords in theme_keywords.items():
-        # Count mentions of this theme
         mentions = sum(1 for text in texts if any(kw in text.lower() for kw in keywords))
         
         if mentions > 0:
-            # Find reviews that mention this theme
+            # Find theme texts
             theme_texts = [text for text in texts if any(kw in text.lower() for kw in keywords)]
             
-            # Determine sentiment for this theme by checking sentiment of reviews
-            theme_sentiments = []
-            for theme_text in theme_texts:
-                # Check which sentiment category this text belongs to
-                text_lower = theme_text.lower()
-                
-                # Simple sentiment detection based on keywords
-                positive_words = ['great', 'good', 'excellent', 'amazing', 'love', 'perfect', 'best']
-                negative_words = ['bad', 'poor', 'terrible', 'waste', 'don\'t', 'not', 'disappointed']
-                
-                positive_count = sum(1 for word in positive_words if word in text_lower)
-                negative_count = sum(1 for word in negative_words if word in text_lower)
-                
-                if positive_count > negative_count:
-                    theme_sentiments.append('positive')
-                elif negative_count > positive_count:
-                    theme_sentiments.append('negative')
-                else:
-                    theme_sentiments.append('neutral')
+            # Simple sentiment
+            positive_words = ['great', 'good', 'excellent', 'amazing', 'love', 'perfect', 'best']
+            negative_words = ['bad', 'poor', 'terrible', 'waste', 'disappointed', 'not good']
             
-            # Get most common sentiment
-            if theme_sentiments:
-                sentiment = max(set(theme_sentiments), key=theme_sentiments.count)
-            else:
-                sentiment = "neutral"
+            sentiment_scores = []
+            for text_lower in [t.lower() for t in theme_texts]:
+                pos = sum(1 for w in positive_words if w in text_lower)
+                neg = sum(1 for w in negative_words if w in text_lower)
+                if pos > neg:
+                    sentiment_scores.append('positive')
+                elif neg > pos:
+                    sentiment_scores.append('negative')
+                else:
+                    sentiment_scores.append('neutral')
+            
+            sentiment = max(set(sentiment_scores), key=sentiment_scores.count) if sentiment_scores else "neutral"
             
             themes.append({
                 "theme": theme_name,
