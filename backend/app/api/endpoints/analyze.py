@@ -1,495 +1,479 @@
-# ================================================================
-# FIXED: backend/app/api/endpoints/analyze.py
-# Replace your current analyze.py with this version
-# ================================================================
-
 """
-FastAPI endpoint for Amazon Review Analysis with AI/NLP toggle
-FIXED VERSION with all missing features
+Analysis Endpoint - Main API endpoint for product review analysis
+Integrates all services for comprehensive analysis
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Dict, Any
-import logging
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
+from sqlalchemy.orm import Session
+from typing import List, Dict, Any, Optional
 from datetime import datetime
-import os
-import re
-from collections import Counter
+import asyncio
+import time
+import hashlib
 
-# NLP imports
-from textblob import TextBlob
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from app.core.config import settings
+from app.core.logging import logger
+from app.db.session import get_db
+from app.api.deps import get_current_user, get_current_active_user
+from app.models.user import User
+from app.models.product import Product
+from app.models.review import Review
+from app.models.database import AnalysisResult
+from app.schemas.analysis import (
+    AnalysisRequest,
+    AnalysisResponse,
+    BatchAnalysisRequest,
+    BatchAnalysisResponse
+)
+from app.services.apify_service import apify_service
+from app.services.nlp_service import nlp_service
+from app.services.openai_service import openai_service
+from app.services.insight_service import insight_service
+from app.services.bot_detector import bot_detector
+from app.services.cache_service import cache_service
+from app.core.exceptions import AppException
 
-# Apify import
-try:
-    from apify_client import ApifyClient
-except ImportError:
-    raise ImportError("❌ apify-client not found!")
-
-# Initialize
-logger = logging.getLogger(__name__)
-vader_analyzer = SentimentIntensityAnalyzer()
 router = APIRouter()
 
-# ==========================================
-# REQUEST/RESPONSE MODELS
-# ==========================================
 
-class AnalysisRequest(BaseModel):
-    """Request model"""
-    asin: str = Field(..., min_length=10, max_length=10)
-    max_reviews: int = Field(50, ge=10, le=100)
-    enable_ai: bool = Field(True)
-    country: str = Field("US")
-    
-    @validator('asin')
-    def validate_asin(cls, v):
-        if not re.match(r'^[A-Z0-9]{10}$', v):
-            raise ValueError('Invalid ASIN format')
-        return v
-
-
-class ProductInfo(BaseModel):
-    """Product information"""
-    title: Optional[str] = None
-    image_url: Optional[str] = None
-    asin: Optional[str] = None
-    average_rating: Optional[float] = None
-
-
-class Review(BaseModel):
-    """Individual review"""
-    title: Optional[str] = None
-    text: Optional[str] = None
-    stars: Optional[int] = None
-    date: Optional[str] = None
-    verified: Optional[bool] = None
-    sentiment: Optional[str] = None
-    sentiment_score: Optional[float] = None
-
-
-class ReviewSamples(BaseModel):
-    """Sample reviews by sentiment"""
-    positive: List[Review] = []
-    negative: List[Review] = []
-    neutral: List[Review] = []
-
-
-class Summaries(BaseModel):
-    """Comprehensive summaries"""
-    overall: str = ""
-    positive_highlights: str = ""
-    negative_highlights: str = ""
-
-
-# FIXED: Flat response structure (NO nesting)
-class AnalysisResponse(BaseModel):
-    """FLAT response - all fields at top level"""
-    success: bool
-    asin: str
-    
-    # Product info
-    product_info: Optional[ProductInfo] = None
-    
-    # Core metrics
-    total_reviews: int
-    average_rating: float
-    
-    # Distributions
-    rating_distribution: Dict[str, int] = {}
-    sentiment_distribution: Optional[Dict[str, int]] = None
-    
-    # Reviews
-    reviews: List[Review] = []
-    review_samples: Optional[ReviewSamples] = None
-    
-    # AI/NLP results
-    ai_enabled: bool = False
-    top_keywords: Optional[List[Dict[str, Any]]] = None
-    themes: Optional[List[str]] = None
-    emotions: Optional[Dict[str, float]] = None  # NEW: For radar chart
-    summaries: Optional[Summaries] = None  # NEW: Comprehensive summaries
-    
-    # Insights
-    insights: Optional[Dict[str, Any]] = None
-    
-    # Metadata
-    timestamp: str
-    processing_time: Optional[float] = None
-    data_source: str = "unknown"
-
-
-# ==========================================
-# HELPER FUNCTIONS
-# ==========================================
-
-def analyze_sentiment_enhanced(text: str) -> Dict[str, Any]:
+@router.post("/analyze", response_model=AnalysisResponse, tags=["Analysis"])
+async def analyze_product_reviews(
+    request: AnalysisRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
     """
-    FIXED: Use VADER compound score (better for reviews)
+    Comprehensive product review analysis with AI/NLP
+    
+    This endpoint:
+    1. Fetches reviews from Amazon via Apify
+    2. Performs sentiment analysis using multiple models
+    3. Detects emotions and extracts keywords
+    4. Identifies themes and patterns
+    5. Generates AI-powered insights
+    6. Stores results in database
     """
-    # VADER analysis
-    vader_scores = vader_analyzer.polarity_scores(text)
-    compound = vader_scores['compound']
+    start_time = time.time()
     
-    # TextBlob for additional metrics
-    blob = TextBlob(text)
-    polarity = blob.sentiment.polarity
-    subjectivity = blob.sentiment.subjectivity
+    # Generate cache key
+    cache_key = f"analysis:{request.asin}:{request.country}:{request.max_reviews}"
     
-    # FIXED: Use VADER compound score with correct thresholds
-    if compound >= 0.05:
-        sentiment = "positive"
-    elif compound <= -0.05:
-        sentiment = "negative"
-    else:
-        sentiment = "neutral"
-    
-    return {
-        'sentiment': sentiment,
-        'compound_score': round(compound, 3),
-        'polarity': round(polarity, 3),
-        'subjectivity': round(subjectivity, 3),
-        'confidence': abs(compound)
-    }
-
-
-def extract_review_samples(processed_reviews: List[Dict], sample_size: int = 3) -> ReviewSamples:
-    """
-    FIXED: Extract DISTINCT positive/negative samples
-    """
-    positive = [r for r in processed_reviews if r.get('sentiment') == 'positive']
-    negative = [r for r in processed_reviews if r.get('sentiment') == 'negative']
-    neutral = [r for r in processed_reviews if r.get('sentiment') == 'neutral']
-    
-    # Sort by sentiment score for best examples
-    positive.sort(key=lambda x: x.get('sentiment_score', 0), reverse=True)
-    negative.sort(key=lambda x: x.get('sentiment_score', 0))
-    
-    return ReviewSamples(
-        positive=[Review(**r) for r in positive[:sample_size]],
-        negative=[Review(**r) for r in negative[:sample_size]],
-        neutral=[Review(**r) for r in neutral[:sample_size]]
-    )
-
-
-def generate_comprehensive_summaries(
-    reviews: List[Dict], 
-    sentiment_dist: Dict[str, int],
-    keywords: List[Dict]
-) -> Summaries:
-    """
-    FIXED: Generate 100+ word summaries
-    """
-    total = len(reviews)
-    if total == 0:
-        return Summaries(
-            overall="No reviews available.",
-            positive_highlights="No positive feedback found.",
-            negative_highlights="No negative feedback found."
-        )
-    
-    pos_pct = (sentiment_dist.get('positive', 0) / total) * 100
-    neg_pct = (sentiment_dist.get('negative', 0) / total) * 100
-    neu_pct = (sentiment_dist.get('neutral', 0) / total) * 100
-    
-    # Top keywords
-    top_words = [k['word'] for k in keywords[:5]] if keywords else ['quality', 'value']
-    
-    # Overall summary (100+ words)
-    overall = f"""
-    Analysis of {total} customer reviews reveals {'strong positive sentiment' if pos_pct > 70 else 'mixed feedback' if pos_pct > 40 else 'concerning negative trends'}.
-    The product receives {pos_pct:.1f}% positive, {neu_pct:.1f}% neutral, and {neg_pct:.1f}% negative reviews.
-    
-    {'Customers consistently praise quality and value, with the majority expressing satisfaction with their purchase.' if pos_pct > 70 else ''}
-    {'While generally favorable, there are areas where customer expectations are not fully met, suggesting room for improvement.' if 40 < pos_pct <= 70 else ''}
-    {'Significant customer concerns require immediate attention to address quality issues and improve satisfaction.' if pos_pct <= 40 else ''}
-    
-    Common themes mentioned by customers include {', '.join(top_words[:3])}, which appear frequently in both positive and negative feedback.
-    This comprehensive analysis provides actionable insights for product enhancement, marketing positioning, and customer service improvements.
-    Understanding these patterns helps identify strengths to amplify and weaknesses to address in future product iterations.
-    """.strip()
-    
-    # Positive highlights (100+ words)
-    positive_highlights = f"""
-    Customer satisfaction is evident in {pos_pct:.1f}% of reviews, with buyers highlighting several key strengths.
-    The most frequently mentioned positive aspects include {top_words[0] if len(top_words) > 0 else 'quality'} and {top_words[1] if len(top_words) > 1 else 'performance'}.
-    
-    Customers appreciate the product's value proposition, consistently noting that it meets or exceeds their expectations in terms of functionality and build quality.
-    Many reviewers specifically mention quick delivery, accurate product descriptions, and positive first impressions upon unboxing.
-    
-    The {top_words[2] if len(top_words) > 2 else 'design'} receives particular praise, with customers noting its attention to detail and user-friendly features.
-    Verified purchasers frequently recommend the product to others, indicating strong brand loyalty and satisfaction with the overall purchase experience.
-    These positive indicators suggest robust product-market fit and effective value delivery.
-    """.strip()
-    
-    # Negative highlights (100+ words)
-    negative_highlights = f"""
-    Critical feedback comprises {neg_pct:.1f}% of reviews, identifying specific areas requiring attention and improvement.
-    The primary concerns center around {top_words[0] if len(top_words) > 0 else 'durability'} issues that have negatively impacted the customer experience.
-    
-    Several customers report problems with {top_words[1] if len(top_words) > 1 else 'functionality'}, suggesting potential quality control gaps or product design limitations.
-    Some negative reviews mention discrepancies between product descriptions and actual received items, indicating a need for more accurate marketing materials.
-    
-    Delivery issues, packaging concerns, and customer service responsiveness also appear in critical feedback, though less frequently than product-specific complaints.
-    Addressing these concerns through improved quality assurance, clearer product descriptions, and enhanced customer support could significantly reduce negative sentiment.
-    Implementing these changes would likely improve overall satisfaction scores and reduce return rates.
-    """.strip()
-    
-    return Summaries(
-        overall=overall,
-        positive_highlights=positive_highlights,
-        negative_highlights=negative_highlights
-    )
-
-
-def extract_keywords(reviews: List[Dict], top_n: int = 10) -> List[Dict[str, Any]]:
-    """Extract top keywords"""
-    stopwords = {
-        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-        'of', 'with', 'by', 'from', 'is', 'was', 'are', 'were', 'be', 'been',
-        'this', 'that', 'it', 'its', 'i', 'you', 'he', 'she', 'we', 'they'
-    }
-    
-    all_words = []
-    for review in reviews:
-        text = f"{review.get('title', '')} {review.get('text', '')}".lower()
-        words = re.findall(r'\b[a-z]{3,}\b', text)
-        filtered = [w for w in words if w not in stopwords]
-        all_words.extend(filtered)
-    
-    word_freq = Counter(all_words)
-    return [
-        {'word': word, 'count': count}
-        for word, count in word_freq.most_common(top_n)
-    ]
-
-
-def identify_themes(reviews: List[Dict]) -> List[str]:
-    """Identify common themes"""
-    theme_keywords = {
-        "Quality": ["quality", "well-made", "durable", "sturdy"],
-        "Price": ["price", "expensive", "cheap", "value", "worth"],
-        "Performance": ["fast", "slow", "works", "broken", "reliable"],
-        "Design": ["look", "design", "style", "color", "size"],
-        "Shipping": ["delivery", "shipping", "arrived", "package"]
-    }
-    
-    theme_counts = {theme: 0 for theme in theme_keywords}
-    
-    for review in reviews:
-        text = f"{review.get('title', '')} {review.get('text', '')}".lower()
-        for theme, keywords in theme_keywords.items():
-            if any(kw in text for kw in keywords):
-                theme_counts[theme] += 1
-    
-    return [theme for theme, count in sorted(theme_counts.items(), key=lambda x: x[1], reverse=True) if count > 0]
-
-
-def analyze_emotions(reviews: List[Dict]) -> Dict[str, float]:
-    """
-    NEW: 8-dimension emotion analysis for radar chart
-    """
-    emotion_keywords = {
-        "joy": ["love", "amazing", "excellent", "happy", "wonderful", "fantastic", "great", "perfect"],
-        "sadness": ["disappointed", "sad", "terrible", "awful", "horrible", "waste", "regret"],
-        "anger": ["angry", "furious", "frustrated", "annoyed", "hate", "worst", "never"],
-        "fear": ["worried", "concerned", "afraid", "unsafe", "dangerous", "risky", "careful"],
-        "surprise": ["surprised", "unexpected", "wow", "shocked", "amazing", "incredible"],
-        "disgust": ["disgusting", "gross", "nasty", "cheap", "garbage", "junk", "terrible"],
-        "trust": ["reliable", "trustworthy", "quality", "recommend", "dependable", "solid"],
-        "anticipation": ["excited", "can't wait", "looking forward", "will buy", "next time"]
-    }
-    
-    emotion_scores = {emotion: 0.0 for emotion in emotion_keywords}
-    total_reviews = len(reviews)
-    
-    if total_reviews == 0:
-        return emotion_scores
-    
-    for review in reviews:
-        text = f"{review.get('title', '')} {review.get('text', '')}".lower()
-        vader_scores = vader_analyzer.polarity_scores(text)
-        sentiment_weight = abs(vader_scores['compound'])
-        
-        for emotion, keywords in emotion_keywords.items():
-            matches = sum(1 for kw in keywords if kw in text)
-            if matches > 0:
-                emotion_scores[emotion] += min(matches * 0.15 * (1 + sentiment_weight), 1.0)
-    
-    # Normalize
-    for emotion in emotion_scores:
-        emotion_scores[emotion] = round(emotion_scores[emotion] / total_reviews, 3)
-    
-    return emotion_scores
-
-
-def extract_product_info(reviews_data: List[Dict]) -> Optional[ProductInfo]:
-    """Extract product metadata from reviews"""
-    for review in reviews_data:
-        if review.get('productTitle'):
-            return ProductInfo(
-                title=review.get('productTitle'),
-                image_url=review.get('productImageUrl') or review.get('imageUrl'),
-                asin=review.get('asin'),
-                average_rating=None  # Calculated separately
-            )
-    return None
-
-
-# ==========================================
-# MAIN ENDPOINT
-# ==========================================
-
-@router.post("/api/v1/analyze", response_model=AnalysisResponse)
-async def analyze_reviews(request: AnalysisRequest):
-    """
-    Analyze Amazon product reviews
-    FIXED VERSION with all features
-    """
-    start_time = datetime.now()
+    # Check cache if enabled
+    if request.use_cache and cache_service.is_available():
+        cached_result = await cache_service.get(cache_key)
+        if cached_result:
+            logger.info(f"Returning cached analysis for ASIN: {request.asin}")
+            return AnalysisResponse(**cached_result)
     
     try:
-        logger.info(f"🔍 Analyzing ASIN: {request.asin}")
+        # Step 1: Fetch reviews from Amazon
+        logger.info(f"Starting analysis for ASIN: {request.asin}")
         
-        # Initialize Apify client
-        apify_token = os.getenv("APIFY_API_TOKEN")
-        if not apify_token:
-            logger.warning("⚠️ No Apify token - using mock data")
-            # Return mock response here if needed
-            raise HTTPException(status_code=500, detail="APIFY_API_TOKEN not configured")
-        
-        client = ApifyClient(apify_token)
-        
-        # Run Apify actor
-        actor_input = {
-            "asins": [request.asin],
-            "maxReviews": request.max_reviews,
-            "country": request.country,
-        }
-        
-        logger.info("📡 Fetching from Apify...")
-        run = client.actor("junglee/amazon-reviews-scraper").call(run_input=actor_input)
-        
-        # Get results
-        reviews_data = []
-        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
-            reviews_data.extend(item.get("reviews", []))
-        
-        logger.info(f"✅ Fetched {len(reviews_data)} reviews")
-        
-        if not reviews_data:
-            return AnalysisResponse(
-                success=True,
-                asin=request.asin,
-                total_reviews=0,
-                average_rating=0,
-                timestamp=datetime.now().isoformat(),
-                data_source="apify"
-            )
-        
-        # Calculate basic stats
-        total_reviews = len(reviews_data)
-        average_rating = sum(r.get('stars', 0) for r in reviews_data) / total_reviews
-        
-        # Rating distribution
-        rating_distribution = {}
-        for i in range(1, 6):
-            rating_distribution[str(i)] = sum(1 for r in reviews_data if r.get('stars') == i)
-        
-        # Process reviews with sentiment analysis
-        processed_reviews = []
-        sentiment_distribution = {"positive": 0, "neutral": 0, "negative": 0}
-        
-        for review in reviews_data:
-            review_dict = {
-                "title": review.get("title"),
-                "text": review.get("text"),
-                "stars": review.get("stars"),
-                "date": review.get("date"),
-                "verified": review.get("verified", False),
-            }
-            
-            if request.enable_ai:
-                combined_text = f"{review.get('title', '')} {review.get('text', '')}"
-                sentiment_info = analyze_sentiment_enhanced(combined_text)
-                
-                review_dict["sentiment"] = sentiment_info['sentiment']
-                review_dict["sentiment_score"] = sentiment_info['compound_score']
-                
-                sentiment_distribution[sentiment_info['sentiment']] += 1
-            
-            processed_reviews.append(review_dict)
-        
-        # AI analysis
-        top_keywords = None
-        themes = None
-        emotions = None
-        summaries = None
-        review_samples = None
-        insights = None
-        
-        if request.enable_ai:
-            logger.info("🤖 Running AI analysis...")
-            top_keywords = extract_keywords(processed_reviews, top_n=10)
-            themes = identify_themes(processed_reviews)
-            emotions = analyze_emotions(processed_reviews)
-            summaries = generate_comprehensive_summaries(processed_reviews, sentiment_distribution, top_keywords)
-            review_samples = extract_review_samples(processed_reviews, sample_size=3)
-            
-            # Generate insights
-            pos_pct = (sentiment_distribution['positive'] / total_reviews) * 100
-            insights = {
-                "summary": f"Product shows {'strong' if pos_pct > 70 else 'moderate' if pos_pct > 40 else 'weak'} customer satisfaction",
-                "insights": [
-                    f"✨ {pos_pct:.1f}% positive sentiment",
-                    f"⚠️ {sentiment_distribution['negative']} critical reviews need attention",
-                    f"🎯 Top concern: {top_keywords[0]['word'] if top_keywords else 'N/A'}"
-                ]
-            }
-        
-        # Extract product info
-        product_info = extract_product_info(reviews_data)
-        if product_info:
-            product_info.average_rating = round(average_rating, 2)
-        
-        # Calculate processing time
-        processing_time = (datetime.now() - start_time).total_seconds()
-        
-        # Build FLAT response
-        response = AnalysisResponse(
-            success=True,
+        review_data = await apify_service.fetch_reviews(
             asin=request.asin,
-            product_info=product_info,
-            total_reviews=total_reviews,
-            average_rating=round(average_rating, 2),
-            rating_distribution=rating_distribution,
-            sentiment_distribution=sentiment_distribution if request.enable_ai else None,
-            reviews=[Review(**r) for r in processed_reviews],
-            review_samples=review_samples,
-            ai_enabled=request.enable_ai,
-            top_keywords=top_keywords,
-            themes=themes,
-            emotions=emotions,
-            summaries=summaries,
-            insights=insights,
-            timestamp=datetime.now().isoformat(),
-            processing_time=round(processing_time, 2),
-            data_source="apify"
+            country=request.country,
+            max_reviews=request.max_reviews,
+            use_cache=request.use_cache,
+            db=db
         )
         
-        logger.info(f"✅ Analysis complete in {processing_time:.2f}s")
-        return response
+        if not review_data.get("success"):
+            raise AppException(
+                message="Failed to fetch reviews",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                details=review_data.get("error")
+            )
         
+        # Step 2: Perform NLP analysis
+        logger.info(f"Analyzing {len(review_data['reviews'])} reviews")
+        
+        nlp_results = await nlp_service.analyze_reviews(
+            reviews=review_data["reviews"],
+            enable_advanced=request.enable_advanced_nlp
+        )
+        
+        # Step 3: Bot detection
+        if settings.ENABLE_BOT_DETECTION and bot_detector:
+            logger.info("Running bot detection")
+            for i, review in enumerate(nlp_results["reviews"]):
+                bot_analysis = await bot_detector.analyze_review(review)
+                nlp_results["reviews"][i].update(bot_analysis)
+        
+        # Step 4: Generate AI insights (if OpenAI is enabled)
+        ai_insights = None
+        ai_summary = None
+        
+        if request.enable_ai and openai_service and openai_service.is_available():
+            logger.info("Generating AI insights")
+            
+            # Generate insights
+            ai_insights = await openai_service.generate_insights(
+                reviews=nlp_results["reviews"],
+                product_info=review_data["product_info"],
+                aggregate_analysis=nlp_results["aggregate"]
+            )
+            
+            # Generate executive summary
+            ai_summary = await openai_service.generate_summary(
+                reviews=nlp_results["reviews"],
+                insights=ai_insights,
+                max_length=request.summary_length
+            )
+        
+        # Step 5: Advanced insights generation
+        advanced_insights = await insight_service.generate_comprehensive_insights(
+            reviews=nlp_results["reviews"],
+            nlp_aggregate=nlp_results["aggregate"],
+            product_info=review_data["product_info"]
+        )
+        
+        # Step 6: Calculate final metrics
+        processing_time = time.time() - start_time
+        
+        # Prepare response
+        response_data = {
+            "success": True,
+            "asin": request.asin,
+            "country": request.country,
+            "product_info": review_data["product_info"],
+            "total_reviews": len(nlp_results["reviews"]),
+            "average_rating": review_data["average_rating"],
+            "rating_distribution": review_data["rating_distribution"],
+            "sentiment_distribution": nlp_results["aggregate"]["sentiment_distribution"],
+            "reviews": nlp_results["reviews"][:request.include_reviews_count] if request.include_reviews else [],
+            "keywords": nlp_results["aggregate"]["keywords"][:20],
+            "themes": nlp_results["aggregate"]["themes"][:10],
+            "emotions": nlp_results["aggregate"]["emotions_summary"],
+            "insights": {
+                "nlp_insights": nlp_results["insights"],
+                "ai_insights": ai_insights,
+                "advanced_insights": advanced_insights
+            },
+            "summary": ai_summary or advanced_insights.get("executive_summary"),
+            "data_source": review_data["data_source"],
+            "ai_provider": "openai" if ai_insights else "local",
+            "processing_time": processing_time,
+            "timestamp": datetime.utcnow().isoformat(),
+            "cache_ttl": settings.CACHE_TTL
+        }
+        
+        # Step 7: Save analysis results to database
+        if request.save_to_db:
+            analysis_result = AnalysisResult(
+                product_id=review_data.get("product_id"),
+                user_id=current_user.id,
+                analysis_type=request.analysis_type,
+                settings=request.dict(),
+                total_reviews_analyzed=len(nlp_results["reviews"]),
+                sentiment_scores=nlp_results["aggregate"]["sentiment_distribution"],
+                emotion_scores=nlp_results["aggregate"]["emotions_summary"],
+                keywords=nlp_results["aggregate"]["keywords"],
+                themes=nlp_results["aggregate"]["themes"],
+                insights=advanced_insights.get("key_insights", []),
+                summary=ai_summary or advanced_insights.get("executive_summary"),
+                ai_provider="openai" if ai_insights else "local",
+                ai_model=settings.OPENAI_MODEL if ai_insights else "local_nlp",
+                processing_time=processing_time
+            )
+            db.add(analysis_result)
+            db.commit()
+            
+            response_data["analysis_id"] = str(analysis_result.id)
+        
+        # Step 8: Cache results
+        if request.use_cache and cache_service.is_available():
+            background_tasks.add_task(
+                cache_service.set,
+                cache_key,
+                response_data,
+                ttl=settings.CACHE_TTL
+            )
+        
+        # Step 9: Track API usage
+        background_tasks.add_task(
+            track_api_usage,
+            user_id=current_user.id,
+            endpoint="/analyze",
+            status_code=200,
+            response_time=processing_time * 1000,
+            db=db
+        )
+        
+        logger.success(f"Analysis completed for ASIN: {request.asin} in {processing_time:.2f}s")
+        return AnalysisResponse(**response_data)
+        
+    except AppException:
+        raise
     except Exception as e:
-        logger.error(f"❌ Analysis error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        logger.error(f"Analysis failed for ASIN {request.asin}: {str(e)}")
+        
+        # Track error
+        background_tasks.add_task(
+            track_api_usage,
+            user_id=current_user.id,
+            endpoint="/analyze",
+            status_code=500,
+            error_message=str(e),
+            db=db
+        )
+        
+        raise AppException(
+            message="Analysis failed",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            details={"error": str(e), "asin": request.asin}
+        )
 
 
-@router.get("/health")
-async def health_check():
-    """Health check"""
+@router.post("/analyze/batch", response_model=BatchAnalysisResponse, tags=["Analysis"])
+async def batch_analyze_products(
+    request: BatchAnalysisRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Batch analysis for multiple products
+    
+    Analyzes up to 10 products in parallel
+    """
+    if len(request.asins) > 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum 10 ASINs allowed per batch"
+        )
+    
+    start_time = time.time()
+    
+    # Create analysis tasks
+    tasks = []
+    for asin in request.asins:
+        analysis_request = AnalysisRequest(
+            asin=asin,
+            country=request.country,
+            max_reviews=request.max_reviews_per_product,
+            enable_ai=request.enable_ai,
+            enable_advanced_nlp=request.enable_advanced_nlp,
+            analysis_type=request.analysis_type,
+            include_reviews=False,  # Don't include full reviews in batch
+            save_to_db=request.save_to_db,
+            use_cache=request.use_cache
+        )
+        
+        tasks.append(
+            analyze_product_reviews(
+                request=analysis_request,
+                background_tasks=background_tasks,
+                db=db,
+                current_user=current_user
+            )
+        )
+    
+    # Execute in parallel
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Process results
+    successful = []
+    failed = []
+    
+    for asin, result in zip(request.asins, results):
+        if isinstance(result, Exception):
+            failed.append({
+                "asin": asin,
+                "error": str(result)
+            })
+        else:
+            successful.append(result.dict())
+    
+    processing_time = time.time() - start_time
+    
+    return BatchAnalysisResponse(
+        success=len(failed) == 0,
+        total_products=len(request.asins),
+        successful_count=len(successful),
+        failed_count=len(failed),
+        results=successful,
+        errors=failed,
+        processing_time=processing_time,
+        timestamp=datetime.utcnow().isoformat()
+    )
+
+
+@router.get("/analyze/{analysis_id}", response_model=AnalysisResponse, tags=["Analysis"])
+async def get_analysis_result(
+    analysis_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Retrieve a previous analysis result by ID
+    """
+    analysis = db.query(AnalysisResult).filter(
+        AnalysisResult.id == analysis_id,
+        AnalysisResult.user_id == current_user.id
+    ).first()
+    
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis not found"
+        )
+    
+    # Get associated product and reviews
+    product = db.query(Product).filter(Product.id == analysis.product_id).first()
+    reviews = db.query(Review).filter(Review.product_id == analysis.product_id).all()
+    
+    return AnalysisResponse(
+        success=True,
+        analysis_id=str(analysis.id),
+        asin=product.asin,
+        product_info=product.to_dict(),
+        total_reviews=analysis.total_reviews_analyzed,
+        average_rating=product.average_rating,
+        sentiment_distribution=analysis.sentiment_scores,
+        emotions=analysis.emotion_scores,
+        keywords=analysis.keywords,
+        themes=analysis.themes,
+        insights={
+            "stored_insights": analysis.insights
+        },
+        summary=analysis.summary,
+        ai_provider=analysis.ai_provider,
+        processing_time=analysis.processing_time,
+        timestamp=analysis.created_at.isoformat()
+    )
+
+
+@router.get("/analyze/history", tags=["Analysis"])
+async def get_analysis_history(
+    skip: int = 0,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get user's analysis history
+    """
+    total = db.query(AnalysisResult).filter(
+        AnalysisResult.user_id == current_user.id
+    ).count()
+    
+    analyses = db.query(AnalysisResult).filter(
+        AnalysisResult.user_id == current_user.id
+    ).order_by(AnalysisResult.created_at.desc()).offset(skip).limit(limit).all()
+    
+    history = []
+    for analysis in analyses:
+        product = db.query(Product).filter(Product.id == analysis.product_id).first()
+        history.append({
+            "id": str(analysis.id),
+            "asin": product.asin if product else None,
+            "product_title": product.title if product else None,
+            "total_reviews": analysis.total_reviews_analyzed,
+            "created_at": analysis.created_at.isoformat(),
+            "processing_time": analysis.processing_time,
+            "ai_provider": analysis.ai_provider
+        })
+    
     return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat()
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "history": history
     }
+
+
+@router.post("/analyze/compare", tags=["Analysis"])
+async def compare_products(
+    asins: List[str],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Compare analysis results for multiple products
+    """
+    if len(asins) < 2 or len(asins) > 5:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please provide 2-5 ASINs for comparison"
+        )
+    
+    comparison_data = []
+    
+    for asin in asins:
+        # Get latest analysis for each product
+        product = db.query(Product).filter(Product.asin == asin).first()
+        if not product:
+            comparison_data.append({
+                "asin": asin,
+                "error": "Product not found"
+            })
+            continue
+        
+        latest_analysis = db.query(AnalysisResult).filter(
+            AnalysisResult.product_id == product.id
+        ).order_by(AnalysisResult.created_at.desc()).first()
+        
+        if not latest_analysis:
+            comparison_data.append({
+                "asin": asin,
+                "error": "No analysis found"
+            })
+            continue
+        
+        comparison_data.append({
+            "asin": asin,
+            "title": product.title,
+            "average_rating": product.average_rating,
+            "total_reviews": product.total_reviews,
+            "sentiment_scores": latest_analysis.sentiment_scores,
+            "emotion_scores": latest_analysis.emotion_scores,
+            "top_keywords": latest_analysis.keywords[:10] if latest_analysis.keywords else [],
+            "analysis_date": latest_analysis.created_at.isoformat()
+        })
+    
+    # Generate comparison insights
+    if len([d for d in comparison_data if "error" not in d]) >= 2:
+        comparison_insights = await insight_service.generate_comparison_insights(comparison_data)
+    else:
+        comparison_insights = []
+    
+    return {
+        "products": comparison_data,
+        "insights": comparison_insights,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+async def track_api_usage(
+    user_id: str,
+    endpoint: str,
+    status_code: int,
+    response_time: float = None,
+    error_message: str = None,
+    db: Session = None
+):
+    """
+    Track API usage for analytics and rate limiting
+    """
+    try:
+        from app.models.database import APIUsage
+        
+        usage = APIUsage(
+            user_id=user_id,
+            endpoint=endpoint,
+            method="POST",
+            status_code=status_code,
+            response_time=response_time,
+            error_message=error_message
+        )
+        
+        if db:
+            db.add(usage)
+            db.commit()
+    except Exception as e:
+        logger.error(f"Failed to track API usage: {e}")
+
+
+# Export router
+__all__ = ["router"]
